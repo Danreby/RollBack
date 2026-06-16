@@ -4,6 +4,7 @@ using UnityEngine;
 public class ThirdPersonController : MonoBehaviour
 {
     public float moveSpeed = 5f;
+    public float sprintSpeed = 9f;
     public float rotationSpeed = 10f;
     public float gravity = -9.81f;
     public Transform cameraTransform;
@@ -35,7 +36,10 @@ public class ThirdPersonController : MonoBehaviour
 
             Vector3 moveDirection = (camForward * input.z + camRight * input.x).normalized;
 
-            controller.Move(moveDirection * moveSpeed * Time.deltaTime);
+            bool isSprinting = Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift);
+            float currentSpeed = isSprinting ? sprintSpeed : moveSpeed;
+
+            controller.Move(moveDirection * currentSpeed * Time.deltaTime);
 
             Quaternion targetRotation = Quaternion.LookRotation(moveDirection);
             transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, rotationSpeed * Time.deltaTime);
