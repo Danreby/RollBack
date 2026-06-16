@@ -8,6 +8,8 @@ public class ThirdPersonController : MonoBehaviour
     public float rotationSpeed = 10f;
     public float gravity = -9.81f;
     public float jumpHeight = 1.5f;
+    public float groundCheckDistance = 0.3f;
+    public LayerMask groundMask = ~0;
     public Transform cameraTransform;
 
     private CharacterController controller;
@@ -22,12 +24,21 @@ public class ThirdPersonController : MonoBehaviour
             cameraTransform = Camera.main.transform;
     }
 
+    private bool IsGrounded()
+    {
+        Vector3 origin = transform.position + controller.center + Vector3.down * (controller.height / 2f - controller.radius);
+        return Physics.SphereCast(origin, controller.radius * 0.9f, Vector3.down, out _, groundCheckDistance, groundMask);
+    }
+
     private void Update()
     {
-        bool isGrounded = controller.isGrounded;
+        bool isGrounded = IsGrounded();
 
         if (isGrounded && verticalVelocity < 0f)
+        {
             verticalVelocity = -2f;
+            if (animator != null) animator.ResetTrigger("Jump");
+        }
 
         if (isGrounded && Input.GetKeyDown(KeyCode.Space))
         {
@@ -39,8 +50,6 @@ public class ThirdPersonController : MonoBehaviour
         float vertical   = Input.GetAxisRaw("Vertical");
         Vector3 input    = new Vector3(horizontal, 0f, vertical);
 
-        Vector3 moveDirection = Vector3.zero;
-
         if (input.sqrMagnitude > 0.0001f)
         {
             Vector3 camForward = cameraTransform.forward;
@@ -50,7 +59,7 @@ public class ThirdPersonController : MonoBehaviour
             camForward.Normalize();
             camRight.Normalize();
 
-            moveDirection = (camForward * input.z + camRight * input.x).normalized;
+            Vector3 moveDirection = (camForward * input.z + camRight * input.x).normalized;
 
             bool isSprinting = Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift);
             float currentSpeed = isSprinting ? sprintSpeed : moveSpeed;
@@ -60,7 +69,6 @@ public class ThirdPersonController : MonoBehaviour
             Quaternion targetRotation = Quaternion.LookRotation(moveDirection);
             transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, rotationSpeed * Time.deltaTime);
 
-            // Speed 0.3 = walk blend, 0.8 = run blend (limiares do UnityChanLocomotions)
             if (animator != null)
             {
                 float speed = isSprinting ? 0.8f : 0.3f;
