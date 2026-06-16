@@ -20,9 +20,9 @@ public class ThirdPersonCamera : MonoBehaviour
         if (target == null)
             return;
 
-        yaw   += Input.GetAxis("Mouse X") * sensitivity;
+        yaw   -= Input.GetAxis("Mouse X") * sensitivity;
         pitch -= Input.GetAxis("Mouse Y") * sensitivity;
-        pitch  = Mathf.Clamp(pitch, -83f, 83f);
+        pitch  = Mathf.Clamp(pitch, -84f, 84f);
 
         Vector3 pivotPoint = target.position + Vector3.up * 1.5f;
 
@@ -35,7 +35,16 @@ public class ThirdPersonCamera : MonoBehaviour
             Mathf.Cos(pitchRad) * -Mathf.Cos(yawRad)
         ) * distance;
 
-        transform.position = pivotPoint + offset;
+        Vector3 desiredPosition = pivotPoint + offset;
+
+        if (Physics.Raycast(desiredPosition + Vector3.up * 50f, Vector3.down, out RaycastHit hit, 100f))
+        {
+            float groundY = hit.point.y + 0.1f;
+            if (desiredPosition.y < groundY)
+                desiredPosition.y = groundY;
+        }
+
+        transform.position = desiredPosition;
 
         Vector3 lookDir = pivotPoint - transform.position;
         Vector3 worldUp = Mathf.Abs(pitch) > 85f
