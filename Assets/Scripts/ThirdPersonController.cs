@@ -60,10 +60,10 @@ public class ThirdPersonController : MonoBehaviour
             Quaternion targetRotation = Quaternion.LookRotation(moveDirection);
             transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, rotationSpeed * Time.deltaTime);
 
-            // Animator: Speed = 1 (andar) ou 2 (correr), Direction = 0 (sem strafe lateral)
+            // Speed 0.3 = walk blend, 0.8 = run blend (limiares do UnityChanLocomotions)
             if (animator != null)
             {
-                float speed = isSprinting ? 2f : 1f;
+                float speed = isSprinting ? 0.8f : 0.3f;
                 animator.SetFloat("Speed",     speed, 0.1f, Time.deltaTime);
                 animator.SetFloat("Direction", 0f,    0.1f, Time.deltaTime);
             }
