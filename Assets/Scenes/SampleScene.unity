@@ -644,8 +644,10 @@ MonoBehaviour:
   m_Name:
   m_EditorClassIdentifier:
   moveSpeed: 5
+  sprintSpeed: 9
   rotationSpeed: 10
   gravity: -9.81
+  jumpHeight: 1.5
   cameraTransform: {fileID: 330585546}
 --- !u!23 &2109457387
 MeshRenderer:

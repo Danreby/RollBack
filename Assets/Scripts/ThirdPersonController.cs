@@ -7,6 +7,7 @@ public class ThirdPersonController : MonoBehaviour
     public float sprintSpeed = 9f;
     public float rotationSpeed = 10f;
     public float gravity = -9.81f;
+    public float jumpHeight = 1.5f;
     public Transform cameraTransform;
 
     private CharacterController controller;
@@ -21,6 +22,14 @@ public class ThirdPersonController : MonoBehaviour
 
     private void Update()
     {
+        bool isGrounded = controller.isGrounded;
+
+        if (isGrounded && verticalVelocity < 0f)
+            verticalVelocity = -2f;
+
+        if (isGrounded && Input.GetKeyDown(KeyCode.Space))
+            verticalVelocity = Mathf.Sqrt(jumpHeight * -2f * gravity);
+
         float horizontal = Input.GetAxisRaw("Horizontal");
         float vertical = Input.GetAxisRaw("Vertical");
         Vector3 input = new Vector3(horizontal, 0f, vertical);
@@ -45,10 +54,7 @@ public class ThirdPersonController : MonoBehaviour
             transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, rotationSpeed * Time.deltaTime);
         }
 
-        if (controller.isGrounded)
-            verticalVelocity = 0f;
-        else
-            verticalVelocity += gravity * Time.deltaTime;
+        verticalVelocity += gravity * Time.deltaTime;
 
         controller.Move(Vector3.up * verticalVelocity * Time.deltaTime);
     }
