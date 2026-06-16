@@ -270,9 +270,12 @@ MonoBehaviour:
   m_Name:
   m_EditorClassIdentifier:
   target: {fileID: 2109457389}
-  offset: {x: 0, y: 3, z: -6}
+  distance: 6
   followSpeed: 10
-  rotationSpeed: 120
+  sensitivity: 3
+  minPitch: -80
+  maxPitch: 80
+  collisionOffset: 0.2
 --- !u!1 &410087039
 GameObject:
   m_ObjectHideFlags: 0
