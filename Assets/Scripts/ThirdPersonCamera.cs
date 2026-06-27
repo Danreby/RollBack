@@ -8,6 +8,7 @@ public class ThirdPersonCamera : MonoBehaviour
 
     private float yaw;
     private float pitch = 10f;
+    private ThirdPersonController targetController;
 
     private void Start()
     {
@@ -20,11 +21,15 @@ public class ThirdPersonCamera : MonoBehaviour
         if (target == null)
             return;
 
+        if (targetController == null)
+            targetController = target.GetComponent<ThirdPersonController>();
+
         yaw   -= Input.GetAxis("Mouse X") * sensitivity;
         pitch -= Input.GetAxis("Mouse Y") * sensitivity;
         pitch  = Mathf.Clamp(pitch, -84f, 84f);
 
-        Vector3 pivotPoint = target.position + Vector3.up * 1.5f;
+        Vector3 combatOffset = targetController != null ? targetController.GetCombatCameraOffset() : Vector3.zero;
+        Vector3 pivotPoint = target.position + combatOffset + Vector3.up * 1.5f;
 
         float pitchRad = pitch * Mathf.Deg2Rad;
         float yawRad   = yaw   * Mathf.Deg2Rad;

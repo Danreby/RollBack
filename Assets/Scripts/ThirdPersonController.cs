@@ -12,11 +12,21 @@ public class ThirdPersonController : MonoBehaviour
     public LayerMask groundMask = ~0;
     public Transform cameraTransform;
 
-    public int maxComboSteps = 3;
+    public int maxComboSteps = 8;
 
-    // Duração real de cada clipe de golpe (slash1, slash2, slash3 do EEJANAI_Team)
-    public float[] attackDurations = { 0.58f, 0.92f, 1.08f };
+    // Duração real de cada clipe de golpe (slash1 a slash8 do EEJANAI_Team)
+    public float[] attackDurations = { 0.58f, 0.92f, 1.08f, 0.75f, 0.83f, 1.17f, 1.25f, 0.33f };
     public float comboWindowStart = 0.1f;
+
+    // Quanto o personagem avança em cada golpe específico do combo (ajuste livremente)
+    public float attack1Distance = 0.3f;
+    public float attack2Distance = 0.3f;
+    public float attack3Distance = 0.3f;
+    public float attack4Distance = 0.3f;
+    public float attack5Distance = 0.3f;
+    public float attack6Distance = 0.3f;
+    public float attack7Distance = 0.3f;
+    public float attack8Distance = 0.3f;
 
     private CharacterController controller;
     private Animator animator;
@@ -55,6 +65,22 @@ public class ThirdPersonController : MonoBehaviour
     {
         if (animator == null) return false;
         return animator.GetCurrentAnimatorStateInfo(0).IsTag("Jump");
+    }
+
+    private float GetAttackDistance(int step)
+    {
+        switch (step)
+        {
+            case 1: return attack1Distance;
+            case 2: return attack2Distance;
+            case 3: return attack3Distance;
+            case 4: return attack4Distance;
+            case 5: return attack5Distance;
+            case 6: return attack6Distance;
+            case 7: return attack7Distance;
+            case 8: return attack8Distance;
+            default: return 0f;
+        }
     }
 
     private void Update()
@@ -151,7 +177,8 @@ public class ThirdPersonController : MonoBehaviour
             else
             {
                 bool inComboWindow = attackElapsed >= comboWindowStart;
-                if (inComboWindow && !comboQueued && comboStep < maxComboSteps)
+                bool canQueue = inComboWindow && !comboQueued && comboStep < maxComboSteps;
+                if (canQueue)
                     comboQueued = true;
             }
         }
@@ -164,6 +191,9 @@ public class ThirdPersonController : MonoBehaviour
 
         if (comboQueued && attackElapsed >= currentDuration * 0.85f)
         {
+            // O personagem só se move de fato agora, no fim da animação do golpe atual.
+            controller.Move(transform.forward * GetAttackDistance(comboStep));
+
             comboStep++;
             comboQueued   = false;
             attackElapsed = 0f;
@@ -174,9 +204,22 @@ public class ThirdPersonController : MonoBehaviour
 
         if (attackElapsed >= currentDuration)
         {
+            controller.Move(transform.forward * GetAttackDistance(comboStep));
+
             isAttacking = false;
             comboStep   = 0;
             comboQueued = false;
         }
+    }
+
+    // Usado pela câmera para "percorrer" visualmente a distância do golpe atual
+    // suavemente durante a animação, mesmo que o personagem só se mova de fato no final.
+    public Vector3 GetCombatCameraOffset()
+    {
+        if (!isAttacking) return Vector3.zero;
+
+        float duration = attackDurations[Mathf.Clamp(comboStep - 1, 0, attackDurations.Length - 1)];
+        float t = Mathf.Clamp01(attackElapsed / duration);
+        return transform.forward * (GetAttackDistance(comboStep) * t);
     }
 }
