@@ -11,15 +11,20 @@ public class ThirdPersonController : MonoBehaviour
     public float groundCheckDistance = 0.3f;
     public LayerMask groundMask = ~0;
     public Transform cameraTransform;
+    public float turnAngleThreshold = 100f;
 
     private CharacterController controller;
     private Animator animator;
     private float verticalVelocity;
     private bool wasJumping;
+    private bool isTurning;
 
     private static readonly int SpeedHash     = Animator.StringToHash("Speed");
     private static readonly int DirectionHash  = Animator.StringToHash("Direction");
     private static readonly int JumpHash       = Animator.StringToHash("Jump");
+    private static readonly int TurnLeftHash  = Animator.StringToHash("TurnLeft");
+    private static readonly int TurnRightHash = Animator.StringToHash("TurnRight");
+    private static readonly int GroundedHash  = Animator.StringToHash("Grounded");
 
     private void Awake()
     {
@@ -39,7 +44,7 @@ public class ThirdPersonController : MonoBehaviour
     private bool IsInJumpState()
     {
         if (animator == null) return false;
-        return animator.GetCurrentAnimatorStateInfo(0).IsName("Jump");
+        return animator.GetCurrentAnimatorStateInfo(0).IsTag("Jump");
     }
 
     private void Update()
@@ -47,18 +52,19 @@ public class ThirdPersonController : MonoBehaviour
         bool isGrounded   = IsGrounded();
         bool isJumping    = IsInJumpState();
 
+        if (animator != null)
+            animator.SetBool(GroundedHash, isGrounded);
+
         // Landing
         if (isGrounded && verticalVelocity < 0f)
         {
             verticalVelocity = -2f;
             if (wasJumping)
             {
-                // Force return to locomotion from Jump state
+                // A transição de volta a Locomotion agora é feita pelo próprio Animator
+                // (JumpFall -> JumpLand -> Locomotion) usando o parâmetro Grounded
                 if (animator != null)
-                {
                     animator.ResetTrigger(JumpHash);
-                    animator.CrossFadeInFixedTime("Locomotion", 0.15f);
-                }
                 wasJumping = false;
             }
         }
@@ -93,6 +99,22 @@ public class ThirdPersonController : MonoBehaviour
             bool isSprinting  = Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift);
             float currentSpeed = isSprinting ? sprintSpeed : moveSpeed;
 
+            // Detecta mudança brusca de direção para disparar a animação de virada
+            float turnAngle = Vector3.SignedAngle(transform.forward, moveDirection, Vector3.up);
+            bool isSharpTurn = Mathf.Abs(turnAngle) > turnAngleThreshold;
+
+            if (isSharpTurn && !isTurning && isGrounded && !isJumping && animator != null)
+            {
+                isTurning = true;
+                animator.ResetTrigger(TurnLeftHash);
+                animator.ResetTrigger(TurnRightHash);
+                animator.SetTrigger(turnAngle > 0f ? TurnRightHash : TurnLeftHash);
+            }
+            else if (!isSharpTurn)
+            {
+                isTurning = false;
+            }
+
             controller.Move(moveDirection * currentSpeed * Time.deltaTime);
 
             transform.rotation = Quaternion.Slerp(
@@ -109,6 +131,7 @@ public class ThirdPersonController : MonoBehaviour
         }
         else if (!isJumping)
         {
+            isTurning = false;
             if (animator != null)
             {
                 animator.SetFloat(SpeedHash,     0f, 0.1f, Time.deltaTime);
