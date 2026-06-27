@@ -13,21 +13,28 @@ public class ThirdPersonController : MonoBehaviour
     public Transform cameraTransform;
 
     public int maxComboSteps = 3;
+
+    // Duração real de cada golpe (clipe base 0.75s / velocidade 0.6 do Animator State = 1.25s)
+    public float attackDuration = 1.25f;
     public float comboWindowStart = 0.1f;
-    public float comboWindowEnd = 1.5f;
 
     private CharacterController controller;
     private Animator animator;
     private float verticalVelocity;
     private bool wasJumping;
-    private int comboStep;
 
-    private static readonly int SpeedHash      = Animator.StringToHash("Speed");
-    private static readonly int DirectionHash  = Animator.StringToHash("Direction");
-    private static readonly int JumpHash       = Animator.StringToHash("Jump");
-    private static readonly int GroundedHash   = Animator.StringToHash("Grounded");
-    private static readonly int AttackHash     = Animator.StringToHash("Attack");
-    private static readonly int ComboStepHash  = Animator.StringToHash("ComboStep");
+    // Estado do combo controlado inteiramente pelo script (não depende do Animator)
+    private bool isAttacking;
+    private int comboStep;
+    private bool comboQueued;
+    private float attackElapsed;
+
+    private static readonly int SpeedHash        = Animator.StringToHash("Speed");
+    private static readonly int DirectionHash    = Animator.StringToHash("Direction");
+    private static readonly int JumpHash         = Animator.StringToHash("Jump");
+    private static readonly int GroundedHash     = Animator.StringToHash("Grounded");
+    private static readonly int AttackHash       = Animator.StringToHash("Attack");
+    private static readonly int ComboAdvanceHash = Animator.StringToHash("ComboAdvance");
 
     private void Awake()
     {
@@ -50,36 +57,25 @@ public class ThirdPersonController : MonoBehaviour
         return animator.GetCurrentAnimatorStateInfo(0).IsTag("Jump");
     }
 
-    private bool IsInAttackState()
-    {
-        if (animator == null) return false;
-        return animator.GetCurrentAnimatorStateInfo(0).IsTag("Attack");
-    }
-
     private void Update()
     {
         bool isGrounded = IsGrounded();
         bool isJumping  = IsInJumpState();
-        bool isAttacking = IsInAttackState();
 
         if (animator != null)
             animator.SetBool(GroundedHash, isGrounded);
 
-        // Landing
         if (isGrounded && verticalVelocity < 0f)
         {
             verticalVelocity = -2f;
             if (wasJumping)
             {
-                // A transição de volta a Locomotion é feita pelo próprio Animator
-                // (JumpFall -> JumpLand -> Locomotion) usando o parâmetro Grounded
                 if (animator != null)
                     animator.ResetTrigger(JumpHash);
                 wasJumping = false;
             }
         }
 
-        // Jump input
         if (isGrounded && !wasJumping && !isAttacking && Input.GetKeyDown(KeyCode.Space))
         {
             verticalVelocity = Mathf.Sqrt(jumpHeight * -2f * gravity);
@@ -91,41 +87,10 @@ public class ThirdPersonController : MonoBehaviour
             }
         }
 
-        // Attack input / combo
-        if (Input.GetMouseButtonDown(0) && isGrounded && !isJumping)
-        {
-            if (!isAttacking)
-            {
-                comboStep = 1;
-                if (animator != null)
-                {
-                    animator.SetInteger(ComboStepHash, comboStep);
-                    animator.SetTrigger(AttackHash);
-                }
-            }
-            else
-            {
-                // Janela de combo em segundos reais, independente da duração/velocidade do clipe
-                AnimatorStateInfo stateInfo = animator.GetCurrentAnimatorStateInfo(0);
-                float elapsedSeconds = stateInfo.length * stateInfo.normalizedTime;
-                bool inComboWindow = elapsedSeconds >= comboWindowStart && elapsedSeconds <= comboWindowEnd;
+        UpdateCombat(isJumping);
 
-                if (inComboWindow && comboStep < maxComboSteps)
-                {
-                    comboStep++;
-                    animator.SetInteger(ComboStepHash, comboStep);
-                    animator.SetTrigger(AttackHash);
-                }
-            }
-        }
-
-        if (!isAttacking)
-            comboStep = 0;
-
-        // Atacar bloqueia movimento, mas pular não deve travar o controle horizontal no ar
         bool isMovementBlocked = isAttacking;
 
-        // Locomotion input
         float horizontal = Input.GetAxisRaw("Horizontal");
         float vertical   = Input.GetAxisRaw("Vertical");
         Vector3 input    = new Vector3(horizontal, 0f, vertical);
@@ -166,8 +131,51 @@ public class ThirdPersonController : MonoBehaviour
             }
         }
 
-        // Gravity + vertical movement
         verticalVelocity += gravity * Time.deltaTime;
         controller.Move(Vector3.up * verticalVelocity * Time.deltaTime);
+    }
+
+    private void UpdateCombat(bool isJumping)
+    {
+        if (Input.GetMouseButtonDown(0) && !isJumping)
+        {
+            if (!isAttacking)
+            {
+                isAttacking   = true;
+                comboStep     = 1;
+                comboQueued   = false;
+                attackElapsed = 0f;
+                if (animator != null)
+                    animator.SetTrigger(AttackHash);
+            }
+            else
+            {
+                bool inComboWindow = attackElapsed >= comboWindowStart;
+                if (inComboWindow && !comboQueued && comboStep < maxComboSteps)
+                    comboQueued = true;
+            }
+        }
+
+        if (!isAttacking)
+            return;
+
+        attackElapsed += Time.deltaTime;
+
+        if (comboQueued && attackElapsed >= attackDuration * 0.85f)
+        {
+            comboStep++;
+            comboQueued   = false;
+            attackElapsed = 0f;
+            if (animator != null)
+                animator.SetTrigger(ComboAdvanceHash);
+            return;
+        }
+
+        if (attackElapsed >= attackDuration)
+        {
+            isAttacking = false;
+            comboStep   = 0;
+            comboQueued = false;
+        }
     }
 }
