@@ -11,20 +11,23 @@ public class ThirdPersonController : MonoBehaviour
     public float groundCheckDistance = 0.3f;
     public LayerMask groundMask = ~0;
     public Transform cameraTransform;
-    public float turnAngleThreshold = 100f;
+
+    public int maxComboSteps = 4;
+    public float comboWindowStart = 0.1f;
+    public float comboWindowEnd = 1.5f;
 
     private CharacterController controller;
     private Animator animator;
     private float verticalVelocity;
     private bool wasJumping;
-    private bool isTurning;
+    private int comboStep;
 
-    private static readonly int SpeedHash     = Animator.StringToHash("Speed");
+    private static readonly int SpeedHash      = Animator.StringToHash("Speed");
     private static readonly int DirectionHash  = Animator.StringToHash("Direction");
     private static readonly int JumpHash       = Animator.StringToHash("Jump");
-    private static readonly int TurnLeftHash  = Animator.StringToHash("TurnLeft");
-    private static readonly int TurnRightHash = Animator.StringToHash("TurnRight");
-    private static readonly int GroundedHash  = Animator.StringToHash("Grounded");
+    private static readonly int GroundedHash   = Animator.StringToHash("Grounded");
+    private static readonly int AttackHash     = Animator.StringToHash("Attack");
+    private static readonly int ComboStepHash  = Animator.StringToHash("ComboStep");
 
     private void Awake()
     {
@@ -47,10 +50,17 @@ public class ThirdPersonController : MonoBehaviour
         return animator.GetCurrentAnimatorStateInfo(0).IsTag("Jump");
     }
 
+    private bool IsInAttackState()
+    {
+        if (animator == null) return false;
+        return animator.GetCurrentAnimatorStateInfo(0).IsTag("Attack");
+    }
+
     private void Update()
     {
-        bool isGrounded   = IsGrounded();
-        bool isJumping    = IsInJumpState();
+        bool isGrounded = IsGrounded();
+        bool isJumping  = IsInJumpState();
+        bool isAttacking = IsInAttackState();
 
         if (animator != null)
             animator.SetBool(GroundedHash, isGrounded);
@@ -61,7 +71,7 @@ public class ThirdPersonController : MonoBehaviour
             verticalVelocity = -2f;
             if (wasJumping)
             {
-                // A transição de volta a Locomotion agora é feita pelo próprio Animator
+                // A transição de volta a Locomotion é feita pelo próprio Animator
                 // (JumpFall -> JumpLand -> Locomotion) usando o parâmetro Grounded
                 if (animator != null)
                     animator.ResetTrigger(JumpHash);
@@ -70,7 +80,7 @@ public class ThirdPersonController : MonoBehaviour
         }
 
         // Jump input
-        if (isGrounded && !wasJumping && Input.GetKeyDown(KeyCode.Space))
+        if (isGrounded && !wasJumping && !isAttacking && Input.GetKeyDown(KeyCode.Space))
         {
             verticalVelocity = Mathf.Sqrt(jumpHeight * -2f * gravity);
             wasJumping       = true;
@@ -81,12 +91,45 @@ public class ThirdPersonController : MonoBehaviour
             }
         }
 
+        // Attack input / combo
+        if (Input.GetMouseButtonDown(0) && isGrounded && !isJumping)
+        {
+            if (!isAttacking)
+            {
+                comboStep = 1;
+                if (animator != null)
+                {
+                    animator.SetInteger(ComboStepHash, comboStep);
+                    animator.SetTrigger(AttackHash);
+                }
+            }
+            else
+            {
+                // Janela de combo em segundos reais, independente da duração/velocidade do clipe
+                AnimatorStateInfo stateInfo = animator.GetCurrentAnimatorStateInfo(0);
+                float elapsedSeconds = stateInfo.length * stateInfo.normalizedTime;
+                bool inComboWindow = elapsedSeconds >= comboWindowStart && elapsedSeconds <= comboWindowEnd;
+
+                if (inComboWindow && comboStep < maxComboSteps)
+                {
+                    comboStep++;
+                    animator.SetInteger(ComboStepHash, comboStep);
+                    animator.SetTrigger(AttackHash);
+                }
+            }
+        }
+
+        if (!isAttacking)
+            comboStep = 0;
+
+        bool isBusy = isJumping || isAttacking;
+
         // Locomotion input
         float horizontal = Input.GetAxisRaw("Horizontal");
         float vertical   = Input.GetAxisRaw("Vertical");
         Vector3 input    = new Vector3(horizontal, 0f, vertical);
 
-        if (input.sqrMagnitude > 0.0001f && !isJumping)
+        if (input.sqrMagnitude > 0.0001f && !isBusy)
         {
             Vector3 camForward = cameraTransform.forward;
             Vector3 camRight   = cameraTransform.right;
@@ -98,22 +141,6 @@ public class ThirdPersonController : MonoBehaviour
             Vector3 moveDirection = (camForward * input.z + camRight * input.x).normalized;
             bool isSprinting  = Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift);
             float currentSpeed = isSprinting ? sprintSpeed : moveSpeed;
-
-            // Detecta mudança brusca de direção para disparar a animação de virada
-            float turnAngle = Vector3.SignedAngle(transform.forward, moveDirection, Vector3.up);
-            bool isSharpTurn = Mathf.Abs(turnAngle) > turnAngleThreshold;
-
-            if (isSharpTurn && !isTurning && isGrounded && !isJumping && animator != null)
-            {
-                isTurning = true;
-                animator.ResetTrigger(TurnLeftHash);
-                animator.ResetTrigger(TurnRightHash);
-                animator.SetTrigger(turnAngle > 0f ? TurnRightHash : TurnLeftHash);
-            }
-            else if (!isSharpTurn)
-            {
-                isTurning = false;
-            }
 
             controller.Move(moveDirection * currentSpeed * Time.deltaTime);
 
@@ -129,9 +156,8 @@ public class ThirdPersonController : MonoBehaviour
                 animator.SetFloat(DirectionHash, 0f,    0.1f, Time.deltaTime);
             }
         }
-        else if (!isJumping)
+        else if (!isBusy)
         {
-            isTurning = false;
             if (animator != null)
             {
                 animator.SetFloat(SpeedHash,     0f, 0.1f, Time.deltaTime);
