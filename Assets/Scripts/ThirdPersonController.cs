@@ -12,7 +12,7 @@ public class ThirdPersonController : MonoBehaviour
     public LayerMask groundMask = ~0;
     public Transform cameraTransform;
 
-    public int maxComboSteps = 4;
+    public int maxComboSteps = 3;
     public float comboWindowStart = 0.1f;
     public float comboWindowEnd = 1.5f;
 
@@ -122,14 +122,15 @@ public class ThirdPersonController : MonoBehaviour
         if (!isAttacking)
             comboStep = 0;
 
-        bool isBusy = isJumping || isAttacking;
+        // Atacar bloqueia movimento, mas pular não deve travar o controle horizontal no ar
+        bool isMovementBlocked = isAttacking;
 
         // Locomotion input
         float horizontal = Input.GetAxisRaw("Horizontal");
         float vertical   = Input.GetAxisRaw("Vertical");
         Vector3 input    = new Vector3(horizontal, 0f, vertical);
 
-        if (input.sqrMagnitude > 0.0001f && !isBusy)
+        if (input.sqrMagnitude > 0.0001f && !isMovementBlocked)
         {
             Vector3 camForward = cameraTransform.forward;
             Vector3 camRight   = cameraTransform.right;
@@ -149,16 +150,16 @@ public class ThirdPersonController : MonoBehaviour
                 Quaternion.LookRotation(moveDirection),
                 rotationSpeed * Time.deltaTime);
 
-            if (animator != null)
+            if (animator != null && !isJumping)
             {
                 float speed = isSprinting ? 0.8f : 0.3f;
                 animator.SetFloat(SpeedHash,     speed, 0.1f, Time.deltaTime);
                 animator.SetFloat(DirectionHash, 0f,    0.1f, Time.deltaTime);
             }
         }
-        else if (!isBusy)
+        else if (!isMovementBlocked)
         {
-            if (animator != null)
+            if (animator != null && !isJumping)
             {
                 animator.SetFloat(SpeedHash,     0f, 0.1f, Time.deltaTime);
                 animator.SetFloat(DirectionHash, 0f, 0.1f, Time.deltaTime);
