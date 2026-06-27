@@ -14,8 +14,8 @@ public class ThirdPersonController : MonoBehaviour
 
     public int maxComboSteps = 3;
 
-    // Duração real de cada golpe (clipe base 0.75s / velocidade 0.6 do Animator State = 1.25s)
-    public float attackDuration = 1.25f;
+    // Duração real de cada clipe de golpe (slash1, slash2, slash3 do EEJANAI_Team)
+    public float[] attackDurations = { 0.58f, 0.92f, 1.08f };
     public float comboWindowStart = 0.1f;
 
     private CharacterController controller;
@@ -160,8 +160,9 @@ public class ThirdPersonController : MonoBehaviour
             return;
 
         attackElapsed += Time.deltaTime;
+        float currentDuration = attackDurations[Mathf.Clamp(comboStep - 1, 0, attackDurations.Length - 1)];
 
-        if (comboQueued && attackElapsed >= attackDuration * 0.85f)
+        if (comboQueued && attackElapsed >= currentDuration * 0.85f)
         {
             comboStep++;
             comboQueued   = false;
@@ -171,7 +172,7 @@ public class ThirdPersonController : MonoBehaviour
             return;
         }
 
-        if (attackElapsed >= attackDuration)
+        if (attackElapsed >= currentDuration)
         {
             isAttacking = false;
             comboStep   = 0;
