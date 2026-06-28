@@ -172,8 +172,24 @@ MonoBehaviour:
     m_Bits: 4294967295
   cameraTransform: {fileID: 201575550}
   maxComboSteps: 3
-  attackDuration: 1.25
+  attackDurations:
+  - 0.58
+  - 0.92
+  - 1.08
+  - 0.75
+  - 0.83
+  - 1.17
+  - 1.25
+  - 0.33
   comboWindowStart: 0.1
+  attack1Distance: 1
+  attack2Distance: 2
+  attack3Distance: 2.5
+  attack4Distance: 2
+  attack5Distance: 0.3
+  attack6Distance: 0.3
+  attack7Distance: 0.3
+  attack8Distance: 0.3
 --- !u!143 &1032233700
 CharacterController:
   m_ObjectHideFlags: 0
