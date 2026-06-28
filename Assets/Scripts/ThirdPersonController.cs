@@ -12,10 +12,14 @@ public class ThirdPersonController : MonoBehaviour
     public LayerMask groundMask = ~0;
     public Transform cameraTransform;
 
-    public int maxComboSteps = 8;
+    // Combo armado (espada equipada) - slash1 a slash8 do EEJANAI_Team
+    public int maxComboStepsArmed = 8;
+    public float[] attackDurationsArmed = { 0.58f, 0.92f, 1.08f, 0.75f, 0.83f, 1.17f, 1.25f, 0.33f };
 
-    // Duração real de cada clipe de golpe (slash1 a slash8 do EEJANAI_Team)
-    public float[] attackDurations = { 0.58f, 0.92f, 1.08f, 0.75f, 0.83f, 1.17f, 1.25f, 0.33f };
+    // Combo desarmado - Unarmed-Attack-L1/L2/L3 do ExplosiveLLC
+    public int maxComboStepsUnarmed = 3;
+    public float[] attackDurationsUnarmed = { 0.75f, 0.75f, 0.75f };
+
     public float comboWindowStart = 0.1f;
 
     private CharacterController controller;
@@ -28,13 +32,23 @@ public class ThirdPersonController : MonoBehaviour
     private int comboStep;
     private bool comboQueued;
     private float attackElapsed;
+    private bool isEquipped;
 
-    private static readonly int SpeedHash        = Animator.StringToHash("Speed");
-    private static readonly int DirectionHash    = Animator.StringToHash("Direction");
-    private static readonly int JumpHash         = Animator.StringToHash("Jump");
-    private static readonly int GroundedHash     = Animator.StringToHash("Grounded");
-    private static readonly int AttackHash       = Animator.StringToHash("Attack");
-    private static readonly int ComboAdvanceHash = Animator.StringToHash("ComboAdvance");
+    private static readonly int SpeedHash               = Animator.StringToHash("Speed");
+    private static readonly int DirectionHash           = Animator.StringToHash("Direction");
+    private static readonly int JumpHash                = Animator.StringToHash("Jump");
+    private static readonly int GroundedHash            = Animator.StringToHash("Grounded");
+    private static readonly int AttackHash              = Animator.StringToHash("Attack");
+    private static readonly int ComboAdvanceHash        = Animator.StringToHash("ComboAdvance");
+    private static readonly int UnarmedAttackHash       = Animator.StringToHash("UnarmedAttack");
+    private static readonly int UnarmedComboAdvanceHash = Animator.StringToHash("UnarmedComboAdvance");
+
+    public bool IsEquipped => isEquipped;
+
+    public void SetEquipped(bool equipped)
+    {
+        isEquipped = equipped;
+    }
 
     private void Awake()
     {
@@ -137,6 +151,11 @@ public class ThirdPersonController : MonoBehaviour
 
     private void UpdateCombat(bool isJumping)
     {
+        int maxComboSteps        = isEquipped ? maxComboStepsArmed : maxComboStepsUnarmed;
+        float[] attackDurations  = isEquipped ? attackDurationsArmed : attackDurationsUnarmed;
+        int attackTriggerHash    = isEquipped ? AttackHash : UnarmedAttackHash;
+        int comboAdvanceHash     = isEquipped ? ComboAdvanceHash : UnarmedComboAdvanceHash;
+
         if (Input.GetMouseButtonDown(0) && !isJumping)
         {
             if (!isAttacking)
@@ -146,7 +165,7 @@ public class ThirdPersonController : MonoBehaviour
                 comboQueued   = false;
                 attackElapsed = 0f;
                 if (animator != null)
-                    animator.SetTrigger(AttackHash);
+                    animator.SetTrigger(attackTriggerHash);
             }
             else
             {
@@ -169,7 +188,7 @@ public class ThirdPersonController : MonoBehaviour
             comboQueued   = false;
             attackElapsed = 0f;
             if (animator != null)
-                animator.SetTrigger(ComboAdvanceHash);
+                animator.SetTrigger(comboAdvanceHash);
             return;
         }
 
