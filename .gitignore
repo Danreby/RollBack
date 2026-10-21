@@ -26,6 +26,16 @@
 # Visual Studio cache directory
 .vs/
 
+# Configurações de editor/IDE geradas automaticamente (VS Code, Rider)
+.vscode/
+.idea/
+*.code-workspace
+
+# Arquivos do sistema operacional
+.DS_Store
+Thumbs.db
+Desktop.ini
+
 # Gradle cache directory
 .gradle/
 
@@ -35,6 +45,7 @@ ExportedObj/
 *.csproj
 *.unityproj
 *.sln
+*.slnx
 *.suo
 *.tmp
 *.user
@@ -59,6 +70,8 @@ sysinfo.txt
 *.apk
 *.aab
 *.unitypackage
+# ...exceto os que vêm dentro de assets importados (o .meta deles já é versionado)
+!/[Aa]ssets/**/*.unitypackage
 *.app
 
 # Crashlytics generated file
