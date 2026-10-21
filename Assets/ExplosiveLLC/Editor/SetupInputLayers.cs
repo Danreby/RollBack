@@ -5,8 +5,16 @@ namespace RPGCharacterAnims
 {
 	class SetupInputLayers:AssetPostprocessor
 	{
+		// O projeto RollBack não usa os inputs/layers do pack (tem controller próprio).
+		// Antes o aviso abria a cada importação de asset; agora aparece só uma vez por projeto.
+		static string ShownKey => "RPGCharacterAnims.SetupMessageShown." + Application.dataPath;
+
 		static void OnPostprocessAllAssets(string[] importedAssets, string[] deletedAssets, string[] movedAssets, string[] movedFromAssetPaths)
 		{
+			if (Application.isBatchMode || EditorPrefs.GetBool(ShownKey, false))
+				return;
+			EditorPrefs.SetBool(ShownKey, true);
+
 			SetupMessageWindow window = ( SetupMessageWindow )EditorWindow.GetWindow(typeof(SetupMessageWindow), true, "Load Input and Layer Presets");
 			window.maxSize = new Vector2(290f, 190f);
 			window.minSize = window.maxSize;
