@@ -1,67 +1,96 @@
 using UnityEngine;
 
-// Sons de combate sintetizados por código (o projeto ainda não tem arquivos de áudio):
-// "whoosh" quando o golpe sai, impacto quando acerta e um sopro na esquiva.
+// Sons do player sintetizados por código (o projeto ainda não tem arquivos de áudio):
+// "whoosh" quando o golpe sai, impacto quando acerta, um sopro na esquiva, passos e pouso.
 // Para usar sons de verdade, troque os AudioClips gerados em Awake por assets.
 [RequireComponent(typeof(AudioSource))]
 public class CombatAudio : MonoBehaviour
 {
     [Range(0f, 1f)] public float volume = 0.7f;
+    [Tooltip("Volume dos passos e do pouso (relativo ao volume geral)")]
+    [Range(0f, 1f)] public float footstepVolume = 0.3f;
     public PlayerCombat combat;
+    public ThirdPersonController movement;
+    public AnimationEventSink animationEvents;
 
     private const int SampleRate = 44100;
 
     private AudioSource source;
+    // Fonte separada para passos: o pitch aleatório de cada passo não pode alterar um golpe tocando
+    private AudioSource movementSource;
     private AudioClip swing;
     private AudioClip hit;
     private AudioClip heavyHit;
     private AudioClip dodge;
+    private AudioClip step;
+    private AudioClip land;
 
     private void Awake()
     {
         source = GetComponent<AudioSource>();
         source.playOnAwake  = false;
         source.spatialBlend = 0f;
+        movementSource = gameObject.AddComponent<AudioSource>();
+        movementSource.playOnAwake  = false;
+        movementSource.spatialBlend = 0f;
 
         swing    = CreateWhoosh("Swing", 0.22f, 700f, 3200f, 1);
         dodge    = CreateWhoosh("Dodge", 0.38f, 350f, 1400f, 2);
         hit      = CreateImpact("Hit", 0.16f, 110f, 3);
         heavyHit = CreateImpact("HeavyHit", 0.3f, 70f, 4);
+        step     = CreateThump("Step", 0.1f, 900f, 80f, 5);
+        land     = CreateThump("Land", 0.22f, 650f, 55f, 6);
 
         if (combat == null)
             combat = GetComponent<PlayerCombat>();
+        if (movement == null)
+            movement = GetComponent<ThirdPersonController>();
+        if (animationEvents == null)
+            animationEvents = GetComponent<AnimationEventSink>();
     }
 
     private void OnEnable()
     {
         if (combat == null)
             combat = GetComponent<PlayerCombat>();
-        if (combat == null)
-            return;
-        combat.SwingStarted += OnSwing;
-        combat.HitLanded    += OnHit;
-        combat.DodgeStarted += OnDodge;
+        if (combat != null)
+        {
+            combat.SwingStarted += OnSwing;
+            combat.HitLanded    += OnHit;
+            combat.DodgeStarted += OnDodge;
+        }
+        if (movement != null)
+            movement.Landed += OnLanded;
+        if (animationEvents != null)
+            animationEvents.Footstep += OnFootstep;
     }
 
     private void OnDisable()
     {
-        if (combat == null)
-            return;
-        combat.SwingStarted -= OnSwing;
-        combat.HitLanded    -= OnHit;
-        combat.DodgeStarted -= OnDodge;
+        if (combat != null)
+        {
+            combat.SwingStarted -= OnSwing;
+            combat.HitLanded    -= OnHit;
+            combat.DodgeStarted -= OnDodge;
+        }
+        if (movement != null)
+            movement.Landed -= OnLanded;
+        if (animationEvents != null)
+            animationEvents.Footstep -= OnFootstep;
     }
 
-    private void OnSwing() => Play(swing, 0.45f, Random.Range(0.9f, 1.15f));
-    private void OnDodge() => Play(dodge, 0.35f, Random.Range(0.95f, 1.05f));
-    private void OnHit(DamageInfo info, Health target) => Play(info.heavy ? heavyHit : hit, 1f, Random.Range(0.92f, 1.08f));
+    private void OnSwing() => Play(source, swing, 0.45f, Random.Range(0.9f, 1.15f));
+    private void OnDodge() => Play(source, dodge, 0.35f, Random.Range(0.95f, 1.05f));
+    private void OnHit(DamageInfo info, Health target) => Play(source, info.heavy ? heavyHit : hit, 1f, Random.Range(0.92f, 1.08f));
+    private void OnFootstep() => Play(movementSource, step, footstepVolume, Random.Range(0.85f, 1.15f));
+    private void OnLanded(float impact) => Play(movementSource, land, footstepVolume * Mathf.Clamp01(impact / 10f) * 2.5f, Random.Range(0.9f, 1.05f));
 
-    private void Play(AudioClip clip, float clipVolume, float pitch)
+    private void Play(AudioSource target, AudioClip clip, float clipVolume, float pitch)
     {
-        if (clip == null || volume <= 0f)
+        if (target == null || clip == null || volume <= 0f)
             return;
-        source.pitch = pitch;
-        source.PlayOneShot(clip, clipVolume * volume);
+        target.pitch = pitch;
+        target.PlayOneShot(clip, clipVolume * volume);
     }
 
     // Ruído branco filtrado por um passa-baixa cuja frequência sobe e desce: som de lâmina cortando o ar.
@@ -108,6 +137,29 @@ public class CombatAudio : MonoBehaviour
             data[i] = body * 0.9f + click * 1.4f;
         }
         return CreateClip(clipName, data, 0.9f);
+    }
+
+    // Passo/pouso: baque grave curto (senoide com leve queda de frequência) + ruído abafado do contato com o chão.
+    private static AudioClip CreateThump(string clipName, float duration, float cutoff, float frequency, int seed)
+    {
+        int count  = Mathf.CeilToInt(duration * SampleRate);
+        var data   = new float[count];
+        var random = new System.Random(seed);
+        float phase = 0f, lp1 = 0f, lp2 = 0f;
+        float alpha = 1f - Mathf.Exp(-2f * Mathf.PI * cutoff / SampleRate);
+        float decay = 5f / duration;
+
+        for (int i = 0; i < count; i++)
+        {
+            float t        = (float)i / SampleRate;
+            float envelope = Mathf.Exp(-t * decay) * Mathf.Clamp01(t * 500f); // ataque de ~2 ms, sem estalo
+            phase         += 2f * Mathf.PI * frequency * (1f + Mathf.Exp(-t * 60f)) / SampleRate;
+            float noise    = (float)(random.NextDouble() * 2.0 - 1.0);
+            lp1 += alpha * (noise - lp1);
+            lp2 += alpha * (lp1 - lp2);
+            data[i] = (Mathf.Sin(phase) * 0.7f + lp2 * 2.2f) * envelope;
+        }
+        return CreateClip(clipName, data, 0.8f);
     }
 
     private static AudioClip CreateClip(string clipName, float[] data, float peak)

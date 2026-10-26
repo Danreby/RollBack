@@ -2,12 +2,16 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 
-// Combate do player: combos armado/desarmado, buffer de input, esquiva com
-// invencibilidade, mira assistida e detecção de acerto.
+// Combate do player: combos armado/desarmado, ataque em corrida, buffer de input, esquiva
+// com invencibilidade, mira assistida e detecção de acerto.
 //
 // Os golpes são disparados por CrossFade a partir daqui (e não por triggers no Animator):
 // o script é a única fonte da verdade sobre "em qual golpe estou", então lógica e animação
 // nunca dessincronizam e não sobram triggers "presos" disparando golpes fora de hora.
+//
+// Espaçamento: os cortes da espada dão passos longos (até ~2 m). Com um alvo à frente, o
+// passo é encurtado para o golpe terminar na distância ideal e, encostado, o resto do passo
+// empurra o alvo; assim o personagem não fica "andando no lugar" com os pés deslizando.
 [RequireComponent(typeof(ThirdPersonController))]
 [DefaultExecutionOrder(-50)]
 public class PlayerCombat : MonoBehaviour
@@ -20,6 +24,13 @@ public class PlayerCombat : MonoBehaviour
     [Tooltip("Por quanto tempo um clique fica guardado esperando a hora de encadear o próximo golpe")]
     public float inputBufferTime = 0.35f;
 
+    [Header("Ataque em corrida")]
+    [Tooltip("Golpe que sai ao atacar correndo (segurando Shift): avança no embalo da corrida")]
+    public AttackData sprintAttackArmed;
+    public AttackData sprintAttackUnarmed;
+    [Tooltip("Velocidade mínima (m/s) para o clique virar ataque em corrida")]
+    public float sprintAttackMinSpeed = 6.5f;
+
     [Header("Distância de ataque")]
     [Tooltip("Se o alvo estiver mais longe que isso (centro a centro), o personagem avança até essa distância antes do golpe sair. Os cortes da espada já dão um passo à frente, por isso o valor é maior")]
     public float attackRangeArmed = 2.2f;
@@ -29,7 +40,13 @@ public class PlayerCombat : MonoBehaviour
     public float lungeSpeed = 7f;
     [Tooltip("Só avança sozinho até alvos mais perto que isso")]
     public float lungeMaxDistance = 4.5f;
-    [Tooltip("O deslocamento da animação para quando o personagem encosta no alvo (não empurra nem atravessa)")]
+    [Tooltip("Distância (centro a centro) em que o golpe com espada deve terminar: o passo da animação é encurtado para chegar nela em vez de atropelar o alvo")]
+    public float idealDistanceArmed = 1.4f;
+    [Tooltip("Mesma ideia, para os socos")]
+    public float idealDistanceUnarmed = 1.0f;
+    [Tooltip("Menor fração do passo da animação mantida ao encurtar (menos que isso e os pés deslizam demais)")]
+    [Range(0f, 1f)] public float minStepScale = 0.5f;
+    [Tooltip("Mais perto que isso o corpo não avança: o que sobra do passo empurra o alvo (se ele puder ser empurrado) em vez de travar o personagem")]
     public float contactDistance = 0.95f;
 
     [Header("Esquiva")]
@@ -99,7 +116,13 @@ public class PlayerCombat : MonoBehaviour
     private float dodgeReadyTime;
     private Vector3 steerDirection;
     private Health attackTarget;
+    private IPushable attackPushable;
+    private float stepScale = 1f;
+    private Vector3 carryMomentum;
     private float weaponBlend;
+
+    // Quão rápido (m/s por segundo) o embalo herdado de um ataque em corrida se dissipa
+    private const float momentumDecay = 35f;
 
     // Detecção de acerto
     private int swingWindow = -1;
@@ -119,6 +142,8 @@ public class PlayerCombat : MonoBehaviour
     public int ComboIndex => comboIndex;
     public AttackData CurrentAttack => currentAttack;
     public float NormalizedTime => actionDuration > 0f ? actionTime / actionDuration : 1f;
+    // 0 = pose desarmada, 1 = armada (transição suave ao pegar/largar a arma)
+    public float WeaponBlend => weaponBlend;
     // Alvo que o próximo golpe vai mirar (o HUD mostra um marcador nele)
     public Health PreviewTarget { get; private set; }
 
@@ -134,10 +159,17 @@ public class PlayerCombat : MonoBehaviour
         health     = GetComponent<Health>();
     }
 
+    private void OnEnable()
+    {
+        controller.ActionMotionFilter = FilterActionMotion;
+    }
+
     private void OnDisable()
     {
         if (state != ActionState.None)
             EndAction(0.1f);
+        if (controller.ActionMotionFilter == (Func<Vector3, Vector3>)FilterActionMotion)
+            controller.ActionMotionFilter = null;
     }
 
     // ---- Pedidos (input do jogador ou código/testes) ----
@@ -191,7 +223,13 @@ public class PlayerCombat : MonoBehaviour
                 if (DodgeBuffered && CanStartDodge())
                     StartDodge();
                 else if (AttackBuffered && CanStartAttack())
-                    StartAttack(0);
+                {
+                    AttackData sprintAttack = SprintAttackAvailable();
+                    if (sprintAttack != null)
+                        StartAttack(sprintAttack, -1);
+                    else
+                        StartComboAttack(0);
+                }
                 break;
             case ActionState.Attack:
                 UpdateAttack(Time.deltaTime);
@@ -252,15 +290,34 @@ public class PlayerCombat : MonoBehaviour
         return controller.IsGrounded && combo != null && combo.Length > 0;
     }
 
-    private void StartAttack(int index)
+    // Ataque em corrida: clique correndo (Shift) em velocidade alta.
+    private AttackData SprintAttackAvailable()
+    {
+        AttackData attack = IsArmed ? sprintAttackArmed : sprintAttackUnarmed;
+        if (attack == null || string.IsNullOrEmpty(attack.stateName) || !controller.IsSprinting)
+            return null;
+        Vector3 velocity = controller.Controller.velocity;
+        velocity.y = 0f;
+        return velocity.magnitude >= sprintAttackMinSpeed ? attack : null;
+    }
+
+    private void StartComboAttack(int index)
     {
         AttackData[] combo = CurrentCombo;
         if (combo == null || combo.Length == 0)
             return;
         index = Mathf.Clamp(index, 0, combo.Length - 1);
-        AttackData attack = combo[index];
+        StartAttack(combo[index], index);
+    }
+
+    // index: posição no combo (-1 = golpe fora do combo, como o ataque em corrida; o próximo clique abre o combo)
+    private void StartAttack(AttackData attack, int index)
+    {
         if (attack == null || string.IsNullOrEmpty(attack.stateName))
             return;
+
+        // O embalo de um ataque em corrida não some de uma vez ao encadear o próximo golpe.
+        carryMomentum = state == ActionState.Attack ? transform.forward * CarrySpeed() : Vector3.zero;
 
         ResetSwing();
         state               = ActionState.Attack;
@@ -270,12 +327,14 @@ public class PlayerCombat : MonoBehaviour
         lastNormalizedTime  = 0f;
         actionDuration      = attack.Duration;
         attackBufferedUntil = -1f;
+        stepScale           = 1f;
         if (health != null)
             health.Invulnerable = false;
 
         // Mira: o alvo mais próximo na direção do input (ou da frente do personagem).
         steerDirection = DesiredDirection();
         attackTarget   = FindTarget(steerDirection);
+        attackPushable = attackTarget != null ? attackTarget.GetComponent<IPushable>() : null;
         UpdateSteerDirection();
 
         controller.SetActionLock(true, attack.rootMotionScale);
@@ -292,6 +351,7 @@ public class PlayerCombat : MonoBehaviour
         actionTime += dt;
         float n = NormalizedTime;
         AttackData attack = currentAttack;
+        carryMomentum = Vector3.MoveTowards(carryMomentum, Vector3.zero, momentumDecay * dt);
 
         // Alinha com o alvo só antes do golpe sair; depois a direção fica travada.
         float steerEnd = attack.hitWindows != null && attack.hitWindows.Length > 0 ? attack.hitWindows[0].x : 0.25f;
@@ -303,12 +363,13 @@ public class PlayerCombat : MonoBehaviour
         else
             controller.ClearFacing();
 
-        // Encostado no alvo: a animação não empurra mais o personagem contra ele.
+        // Perto do alvo: o passo da animação é encurtado (FilterActionMotion) para terminar na distância ideal.
         // Longe (e antes do golpe sair): avança até a distância de ataque, para o golpe conectar.
+        // O ataque em corrida já chega no embalo, então não avança sozinho.
         float range    = IsArmed ? attackRangeArmed : attackRangeUnarmed;
         float distance = DistanceToTarget(out Vector3 toTarget);
-        controller.SetActionLock(true, distance <= contactDistance ? 0f : attack.rootMotionScale);
-        if (n < steerEnd && distance > range && distance < lungeMaxDistance)
+        stepScale = ComputeStepScale(attack, n, distance);
+        if (attack.carrySpeed <= 0f && n < steerEnd && distance > range && distance < lungeMaxDistance)
             controller.Nudge(toTarget * Mathf.Min(lungeSpeed * dt, distance - range));
 
         AttackData[] combo = CurrentCombo;
@@ -318,12 +379,12 @@ public class PlayerCombat : MonoBehaviour
         {
             if (!isLast && n >= attack.comboTime)
             {
-                StartAttack(comboIndex + 1);
+                StartComboAttack(comboIndex + 1);
                 return;
             }
             if (isLast && n >= attack.recoveryTime)
             {
-                StartAttack(0);
+                StartComboAttack(0);
                 return;
             }
         }
@@ -369,6 +430,57 @@ public class PlayerCombat : MonoBehaviour
     private Vector3 DesiredDirection()
     {
         return controller.HasMoveInput ? controller.MoveDirection.normalized : transform.forward;
+    }
+
+    // ---- Espaçamento até o alvo ----
+
+    // Fração do passo da animação que vale agora, para o golpe terminar perto da distância ideal do alvo.
+    private float ComputeStepScale(AttackData attack, float n, float distance)
+    {
+        if (attack.rootTravel <= 0f || float.IsInfinity(distance) || animator == null)
+            return 1f;
+        // Quanto a animação ainda vai andar (aproximação linear no tempo) e quanto espaço sobra até a distância ideal.
+        // Recalculado todo frame: se o alvo for empurrado pelo golpe, o passo volta a crescer.
+        float remaining = attack.rootTravel * animator.humanScale * attack.rootMotionScale * Mathf.Max(0.1f, 1f - n);
+        float room      = distance - (IsArmed ? idealDistanceArmed : idealDistanceUnarmed);
+        return Mathf.Clamp(room / Mathf.Max(0.01f, remaining), minStepScale, 1f);
+    }
+
+    // Embalo do golpe atual (m/s): ataques em corrida seguem avançando na velocidade da passada.
+    private float CarrySpeed()
+    {
+        return state == ActionState.Attack && currentAttack != null ? Mathf.Max(0f, currentAttack.carrySpeed) : 0f;
+    }
+
+    // Chamado pelo ThirdPersonController (OnAnimatorMove) com o deslocamento da ação neste frame.
+    private Vector3 FilterActionMotion(Vector3 delta)
+    {
+        if (state != ActionState.Attack || currentAttack == null)
+            return delta;
+
+        delta += (transform.forward * CarrySpeed() + carryMomentum) * Time.deltaTime;
+
+        float distance = DistanceToTarget(out Vector3 toTarget);
+        if (float.IsInfinity(distance))
+            return delta;
+
+        // Só o que aproxima do alvo é ajustado; recuos e passos de lado ficam como na animação.
+        float forward = Vector3.Dot(delta, toTarget);
+        if (forward <= 0f)
+            return delta;
+        Vector3 side = delta - toTarget * forward;
+        forward *= stepScale;
+
+        // Encostado: o corpo para e o que sobra do passo empurra o alvo (se ele puder ser empurrado).
+        float free = Mathf.Max(0f, distance - contactDistance);
+        if (forward > free)
+        {
+            float pushed = 0f;
+            if (attackPushable != null && !attackTarget.IsDead)
+                pushed = Mathf.Max(0f, Vector3.Dot(attackPushable.Push(toTarget * (forward - free)), toTarget));
+            forward = Mathf.Min(forward, free + pushed);
+        }
+        return side + toTarget * forward;
     }
 
     private Health FindTarget(Vector3 direction)
@@ -422,6 +534,8 @@ public class PlayerCombat : MonoBehaviour
         state               = ActionState.Dodge;
         currentAttack       = null;
         attackTarget        = null;
+        attackPushable      = null;
+        carryMomentum       = Vector3.zero;
         comboIndex          = -1;
         actionTime          = 0f;
         actionDuration      = clip.length / Mathf.Max(0.05f, dodgeSpeed);
@@ -451,7 +565,7 @@ public class PlayerCombat : MonoBehaviour
             // Esquiva -> ataque é um cancelamento clássico
             if (AttackBuffered && CanStartAttack())
             {
-                StartAttack(0);
+                StartComboAttack(0);
                 return;
             }
             if (DodgeBuffered && CanStartDodge())
@@ -474,15 +588,22 @@ public class PlayerCombat : MonoBehaviour
 
     private void EndAction(float transition)
     {
+        // Saindo de um golpe com embalo (ataque em corrida): continua na mesma velocidade em vez de parar seco.
+        Vector3 momentum = transform.forward * CarrySpeed() + carryMomentum;
+
         ResetSwing();
-        state         = ActionState.None;
-        currentAttack = null;
-        attackTarget  = null;
-        comboIndex    = -1;
+        state          = ActionState.None;
+        currentAttack  = null;
+        attackTarget   = null;
+        attackPushable = null;
+        carryMomentum  = Vector3.zero;
+        comboIndex     = -1;
         if (health != null)
             health.Invulnerable = false;
 
         controller.SetActionLock(false);
+        if (momentum.sqrMagnitude > 0.01f)
+            controller.SetMomentum(momentum);
         if (animator != null && isActiveAndEnabled)
             animator.CrossFadeInFixedTime(LocomotionHash, transition, 0);
     }

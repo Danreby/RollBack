@@ -593,8 +593,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9fc738ef2a8c6364bbfb3dedfc67c274, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  handPositionOffset: {x: 0, y: 0, z: 0.5}
-  handRotationOffset: {x: 0, y: 0, z: 5}
+  handPositionOffset: {x: -0.0721, y: -0.0289, z: 0.5168}
+  handRotationOffset: {x: 3.9, y: 320.19, z: 266.67}
+  equipBlendTime: 0.12
   dropForce: 2.5
   promptText: '[E] Pegar espada'
 --- !u!135 &997426458
@@ -732,6 +733,9 @@ MonoBehaviour:
     recoveryTime: 0.88
     endTime: 1
     rootMotionScale: 1
+    rootTravel: 0.763
+    carrySpeed: 0
+    twoHanded: 0
     knockback: 0.35
     heavy: 0
     transitionDuration: 0.12
@@ -748,6 +752,9 @@ MonoBehaviour:
     recoveryTime: 0.78
     endTime: 0.95
     rootMotionScale: 1
+    rootTravel: 1.731
+    carrySpeed: 0
+    twoHanded: 0
     knockback: 0.25
     heavy: 0
     transitionDuration: 0.1
@@ -763,6 +770,9 @@ MonoBehaviour:
     recoveryTime: 0.62
     endTime: 0.85
     rootMotionScale: 1
+    rootTravel: 1.43
+    carrySpeed: 0
+    twoHanded: 0
     knockback: 0.4
     heavy: 0
     transitionDuration: 0.1
@@ -778,6 +788,9 @@ MonoBehaviour:
     recoveryTime: 0.88
     endTime: 1
     rootMotionScale: 1
+    rootTravel: 1.486
+    carrySpeed: 0
+    twoHanded: 0
     knockback: 0.4
     heavy: 0
     transitionDuration: 0.1
@@ -795,6 +808,9 @@ MonoBehaviour:
     recoveryTime: 0.66
     endTime: 0.9
     rootMotionScale: 1
+    rootTravel: 1.341
+    carrySpeed: 0
+    twoHanded: 0
     knockback: 0.25
     heavy: 0
     transitionDuration: 0.1
@@ -810,6 +826,9 @@ MonoBehaviour:
     recoveryTime: 0.6
     endTime: 0.8
     rootMotionScale: 1
+    rootTravel: 0
+    carrySpeed: 0
+    twoHanded: 0
     knockback: 0.4
     heavy: 0
     transitionDuration: 0.1
@@ -825,6 +844,9 @@ MonoBehaviour:
     recoveryTime: 0.95
     endTime: 1
     rootMotionScale: 1
+    rootTravel: 0.733
+    carrySpeed: 0
+    twoHanded: 0
     knockback: 1.2
     heavy: 1
     transitionDuration: 0.1
@@ -841,6 +863,9 @@ MonoBehaviour:
     recoveryTime: 0.58
     endTime: 0.8
     rootMotionScale: 1
+    rootTravel: 0
+    carrySpeed: 0
+    twoHanded: 0
     knockback: 0.2
     heavy: 0
     transitionDuration: 0.12
@@ -856,6 +881,9 @@ MonoBehaviour:
     recoveryTime: 0.58
     endTime: 0.8
     rootMotionScale: 1
+    rootTravel: 0
+    carrySpeed: 0
+    twoHanded: 0
     knockback: 0.25
     heavy: 0
     transitionDuration: 0.1
@@ -871,6 +899,9 @@ MonoBehaviour:
     recoveryTime: 0.58
     endTime: 0.8
     rootMotionScale: 1
+    rootTravel: 0
+    carrySpeed: 0
+    twoHanded: 0
     knockback: 0.25
     heavy: 0
     transitionDuration: 0.1
@@ -886,14 +917,59 @@ MonoBehaviour:
     recoveryTime: 0.62
     endTime: 0.85
     rootMotionScale: 1
+    rootTravel: 0
+    carrySpeed: 0
+    twoHanded: 0
     knockback: 0.9
     heavy: 1
     transitionDuration: 0.1
   inputBufferTime: 0.35
+  sprintAttackArmed:
+    name: Investida
+    stateName: SprintAttackArmed
+    clip: {fileID: 7400000, guid: 322adb187b75a0848857a892aacf048c, type: 3}
+    speed: 1.15
+    damage: 16
+    hitWindows:
+    - {x: 0.24, y: 0.42}
+    hitBone: 18
+    comboTime: 0.5
+    recoveryTime: 0.55
+    endTime: 0.8
+    rootMotionScale: 1
+    rootTravel: 0
+    carrySpeed: 7.2
+    twoHanded: 1
+    knockback: 0.6
+    heavy: 0
+    transitionDuration: 0.12
+  sprintAttackUnarmed:
+    name: Soco em corrida
+    stateName: SprintAttackUnarmed
+    clip: {fileID: 7400000, guid: ed538099471ffbc49979f1e2acfa33bc, type: 3}
+    speed: 1.15
+    damage: 9
+    hitWindows:
+    - {x: 0.27, y: 0.4}
+    hitBone: 18
+    comboTime: 0.5
+    recoveryTime: 0.55
+    endTime: 0.8
+    rootMotionScale: 1
+    rootTravel: 0
+    carrySpeed: 7.2
+    twoHanded: 0
+    knockback: 0.5
+    heavy: 0
+    transitionDuration: 0.12
+  sprintAttackMinSpeed: 6.5
   attackRangeArmed: 2.2
   attackRangeUnarmed: 1.15
   lungeSpeed: 7
   lungeMaxDistance: 4.5
+  idealDistanceArmed: 1.4
+  idealDistanceUnarmed: 1
+  minStepScale: 0.5
   contactDistance: 0.95
   dodgeStateUnarmed: DodgeUnarmed
   dodgeStateArmed: DodgeArmed
@@ -1058,6 +1134,23 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   maxHealth: 100
+--- !u!114 &1032233709
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1032233698}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bfc6249609b84d08bf846b80384b557d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  gripLayerName: RightHandGrip
+  offHandIK: 1
+  attachRadius: 0.12
+  maxSlide: 0.5
+  blendSpeed: 10
 --- !u!114 &1032233708
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1170,6 +1263,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 100050, guid: e57e9b8cd5e115f4f8d7736473e5c7fd, type: 3}
       insertIndex: -1
       addedObject: {fileID: 1032233704}
+    - targetCorrespondingSourceObject: {fileID: 100050, guid: e57e9b8cd5e115f4f8d7736473e5c7fd, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1032233709}
   m_SourcePrefab: {fileID: 100100000, guid: e57e9b8cd5e115f4f8d7736473e5c7fd, type: 3}
 --- !u!1001 &1193847386
 PrefabInstance:
@@ -1681,6 +1777,9 @@ MonoBehaviour:
   bladeRadius: 0.22
   damageMultiplier: 1
   trail: {fileID: 16985423}
+  gripAxis: {x: -0.009, y: 0.6358, z: 0.7718}
+  mainHandGrip: {x: 0.0003, y: -0.3406, z: -0.2809}
+  offHandGrip: {x: 0.0014, y: -0.4164, z: -0.3729}
 --- !u!1 &1907487318
 GameObject:
   m_ObjectHideFlags: 0

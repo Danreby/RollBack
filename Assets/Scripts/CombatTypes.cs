@@ -9,6 +9,14 @@ public interface IDamageable
     bool TakeDamage(DamageInfo info);
 }
 
+// Alvos que o passo de um golpe pode empurrar: encostado no alvo, o atacante continua o
+// movimento da animação e "leva" o alvo junto, em vez de travar com os pés deslizando no lugar.
+public interface IPushable
+{
+    // Desloca o alvo respeitando colisões e devolve o deslocamento que realmente aconteceu.
+    Vector3 Push(Vector3 delta);
+}
+
 public struct DamageInfo
 {
     public float amount;
@@ -48,6 +56,12 @@ public class AttackData
 
     [Tooltip("Escala do deslocamento da animação (root motion). 0 = golpe parado")]
     public float rootMotionScale = 1f;
+    [Tooltip("Quanto a animação anda para frente do início ao fim, em unidades humanoides (curva RootT; a Unity multiplica pela escala do avatar). Com alvo, o passo é encurtado para o golpe terminar na distância ideal em vez de atropelar o alvo. 0 = não ajusta")]
+    public float rootTravel;
+    [Tooltip("Velocidade (m/s) com que o personagem segue avançando durante o golpe, para animações que não se deslocam sozinhas (ex.: ataque em corrida)")]
+    public float carrySpeed;
+    [Tooltip("Golpe com as duas mãos na arma: a mão esquerda é encaixada no cabo")]
+    public bool twoHanded;
     [Tooltip("Empurrão aplicado no alvo, em metros")]
     public float knockback = 0.4f;
     [Tooltip("Finalizador: mais hit stop, tremor de câmera e reação forte no alvo")]

@@ -1,8 +1,10 @@
+using System;
 using UnityEngine;
 
 // Locomoção em terceira pessoa: anda/corre relativo à câmera, pula e aplica gravidade.
 // Durante ações do PlayerCombat (golpes e esquiva) o input de movimento é ignorado e o
 // deslocamento vem da própria animação (root motion), aplicado em OnAnimatorMove.
+// O tronco inclina levemente para dentro das curvas quando o personagem corre.
 [RequireComponent(typeof(CharacterController))]
 public class ThirdPersonController : MonoBehaviour
 {
@@ -24,6 +26,18 @@ public class ThirdPersonController : MonoBehaviour
     public float jumpBufferTime = 0.15f;
     public float groundCheckDistance = 0.2f;
     public LayerMask groundMask = ~0;
+    [Tooltip("Pousos acima desta velocidade (m/s) tremem a câmera; um pulo normal pousa a ~8 m/s")]
+    public float hardLandingSpeed = 10f;
+    [Tooltip("Tremor de câmera de um pouso bem forte")]
+    public float landingShake = 0.25f;
+
+    [Header("Inclinação nas curvas")]
+    [Tooltip("Inclinação máxima do tronco para dentro da curva (graus). 0 desliga")]
+    public float maxLean = 8f;
+    [Tooltip("Graus de inclinação por (grau/s de giro × m/s de velocidade)")]
+    public float leanAmount = 0.0015f;
+    [Tooltip("Quão rápido a inclinação acompanha a curva (maior = mais seco)")]
+    public float leanSharpness = 10f;
 
     [Header("Referências")]
     public Transform cameraTransform;
@@ -46,6 +60,11 @@ public class ThirdPersonController : MonoBehaviour
     private Vector3 facingOverride;
     private float facingOverrideSpeed;
 
+    // Inclinação do tronco
+    private Transform leanBone;
+    private float lean;
+    private float lastYaw;
+
     private static readonly int SpeedHash    = Animator.StringToHash("Speed");
     private static readonly int JumpHash     = Animator.StringToHash("Jump");
     private static readonly int GroundedHash = Animator.StringToHash("Grounded");
@@ -58,6 +77,12 @@ public class ThirdPersonController : MonoBehaviour
     public Vector3 MoveDirection { get; private set; }
     public bool HasMoveInput => MoveDirection.sqrMagnitude > 0.01f;
     public bool IsSprinting { get; private set; }
+
+    // Ajuste do deslocamento das ações antes de aplicá-lo (o PlayerCombat encurta o passo perto do
+    // alvo, soma o embalo dos ataques em corrida e empurra o alvo quando encosta).
+    public Func<Vector3, Vector3> ActionMotionFilter { get; set; }
+    // Disparado ao tocar o chão depois de um pulo/queda, com a velocidade vertical do impacto (m/s).
+    public event Action<float> Landed;
 
     private void Awake()
     {
@@ -72,9 +97,12 @@ public class ThirdPersonController : MonoBehaviour
             animator.applyRootMotion = true;
             // A detecção de acerto lê os ossos (mão/espada): eles não podem congelar por culling.
             animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
+            if (animator.isHuman)
+                leanBone = animator.GetBoneTransform(HumanBodyBones.Spine);
         }
         if (cameraTransform == null && Camera.main != null)
             cameraTransform = Camera.main.transform;
+        lastYaw = transform.eulerAngles.y;
     }
 
     private void Update()
@@ -103,6 +131,15 @@ public class ThirdPersonController : MonoBehaviour
             return;
 
         lastGroundedTime = Time.time;
+        if (!wasGrounded)
+        {
+            // Velocidade vertical ainda é a da queda: a gravidade só "cola" no chão depois deste passo.
+            float impact = -verticalVelocity;
+            if (impact > 1f)
+                Landed?.Invoke(impact);
+            if (impact > hardLandingSpeed)
+                ThirdPersonCamera.Shake(landingShake * Mathf.Clamp01((impact - hardLandingSpeed) / hardLandingSpeed));
+        }
         if (!wasGrounded && jumping)
         {
             jumping = false;
@@ -218,13 +255,42 @@ public class ThirdPersonController : MonoBehaviour
 
     private void OnAnimatorMove()
     {
-        if (animator == null || !actionLocked || rootMotionScale <= 0f)
+        if (animator == null || !actionLocked)
             return;
 
-        Vector3 delta = animator.deltaPosition;
+        Vector3 delta = animator.deltaPosition * rootMotionScale;
         delta.y = 0f;
-        if (delta.sqrMagnitude > 1e-8f)
-            controller.Move(delta * rootMotionScale);
+        if (ActionMotionFilter != null)
+            delta = ActionMotionFilter(delta);
+        if (delta.sqrMagnitude > 1e-8f && controller.enabled)
+            controller.Move(delta);
+    }
+
+    private void LateUpdate()
+    {
+        UpdateLean(Time.deltaTime);
+    }
+
+    // Inclina a coluna para dentro da curva, proporcional ao giro e à velocidade. Roda depois da
+    // animação deste frame (e é refeito todo frame), então nunca acumula.
+    private void UpdateLean(float dt)
+    {
+        if (dt <= 0f)
+            return;
+
+        float yaw     = transform.eulerAngles.y;
+        float yawRate = Mathf.DeltaAngle(lastYaw, yaw) / dt; // graus/s, positivo = virando para a direita
+        lastYaw       = yaw;
+
+        Vector3 velocity = controller.velocity;
+        velocity.y = 0f;
+        float target = actionLocked || !isGrounded || maxLean <= 0f
+            ? 0f
+            : Mathf.Clamp(-yawRate * velocity.magnitude * leanAmount, -maxLean, maxLean);
+        lean = Mathf.Lerp(lean, target, 1f - Mathf.Exp(-leanSharpness * dt));
+
+        if (leanBone != null && Mathf.Abs(lean) > 0.01f)
+            leanBone.rotation = Quaternion.AngleAxis(lean, transform.forward) * leanBone.rotation;
     }
 
     // ---- API usada pelo PlayerCombat ----
@@ -266,6 +332,16 @@ public class ThirdPersonController : MonoBehaviour
             controller.Move(delta);
     }
 
+    // Ao sair de uma ação que vinha se deslocando (ex.: ataque em corrida), segue com essa
+    // velocidade: com o direcional apertado continua correndo, solto desacelera normalmente.
+    public void SetMomentum(Vector3 velocity)
+    {
+        velocity.y     = 0f;
+        planarVelocity = velocity;
+        if (animator != null)
+            animator.SetFloat(SpeedHash, velocity.magnitude);
+    }
+
     public void Teleport(Vector3 position, Quaternion rotation)
     {
         controller.enabled = false;
@@ -273,5 +349,7 @@ public class ThirdPersonController : MonoBehaviour
         controller.enabled = true;
         planarVelocity     = Vector3.zero;
         verticalVelocity   = 0f;
+        lastYaw            = rotation.eulerAngles.y;
+        lean               = 0f;
     }
 }

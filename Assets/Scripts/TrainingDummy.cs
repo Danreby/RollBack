@@ -3,8 +3,9 @@ using UnityEngine;
 
 // Boneco de treino: reage aos golpes de acordo com o lado do impacto, é empurrado,
 // pisca ao ser atingido, cai quando a vida acaba e levanta sozinho alguns segundos depois.
+// Também cede ao corpo do player: encostado, o passo dos golpes empurra o boneco para trás.
 [RequireComponent(typeof(Health))]
-public class TrainingDummy : MonoBehaviour
+public class TrainingDummy : MonoBehaviour, IPushable
 {
     [Header("Estados do Animator")]
     public string idleState      = "Idle";
@@ -121,6 +122,23 @@ public class TrainingDummy : MonoBehaviour
             state = from.x > 0f ? hitRightState : hitLeftState;
 
         animator.CrossFadeInFixedTime(state, 0.04f, 0, 0f);
+    }
+
+    public Vector3 Push(Vector3 delta)
+    {
+        delta.y = 0f;
+        // Caído (ou levantando) o boneco não desliza pelo chão
+        if (down || delta.sqrMagnitude < 1e-8f)
+            return Vector3.zero;
+
+        Vector3 before = transform.position;
+        if (controller != null && controller.enabled)
+            controller.Move(delta);
+        else
+            transform.position += delta;
+        Vector3 moved = transform.position - before;
+        moved.y = 0f;
+        return moved;
     }
 
     private void OnDied(DamageInfo info)

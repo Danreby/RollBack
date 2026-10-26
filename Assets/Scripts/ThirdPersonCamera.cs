@@ -1,7 +1,8 @@
 using UnityEngine;
 
 // Câmera orbital em terceira pessoa: o mouse gira, o scroll aproxima/afasta, ela colide
-// com o cenário (não atravessa chão nem paredes) e treme nos impactos.
+// com o cenário (não atravessa chão nem paredes), treme nos impactos e abre um pouco o
+// campo de visão quando o personagem corre (sensação de velocidade).
 // Esc solta o cursor; clicar na janela captura de novo.
 public class ThirdPersonCamera : MonoBehaviour
 {
@@ -30,7 +31,17 @@ public class ThirdPersonCamera : MonoBehaviour
     [Tooltip("Quanto do tremor some por segundo")]
     public float shakeDecay = 2f;
 
+    [Header("Velocidade")]
+    [Tooltip("Graus a mais de campo de visão correndo na velocidade máxima. 0 desliga")]
+    public float sprintFovBoost = 6f;
+    [Tooltip("Quão rápido o campo de visão acompanha a velocidade")]
+    public float fovSharpness = 4f;
+
     private static ThirdPersonCamera instance;
+
+    private Camera cam;
+    private float baseFov;
+    private ThirdPersonController targetController;
 
     private float yaw;
     private float pitch = 15f;
@@ -61,6 +72,11 @@ public class ThirdPersonCamera : MonoBehaviour
 
     private void Start()
     {
+        cam = GetComponent<Camera>();
+        if (cam != null)
+            baseFov = cam.fieldOfView;
+        if (target != null)
+            targetController = target.GetComponent<ThirdPersonController>();
         SetCursorLocked(true);
         SnapBehindTarget();
     }
@@ -118,6 +134,22 @@ public class ThirdPersonCamera : MonoBehaviour
         }
 
         transform.SetPositionAndRotation(position, rotation);
+        UpdateFieldOfView(dt);
+    }
+
+    private void UpdateFieldOfView(float dt)
+    {
+        if (cam == null || sprintFovBoost <= 0f)
+            return;
+
+        float boost = 0f;
+        if (targetController != null)
+        {
+            Vector3 velocity = targetController.Controller.velocity;
+            velocity.y = 0f;
+            boost = sprintFovBoost * Mathf.InverseLerp(targetController.moveSpeed, targetController.sprintSpeed, velocity.magnitude);
+        }
+        cam.fieldOfView = Mathf.Lerp(cam.fieldOfView, baseFov + boost, 1f - Mathf.Exp(-fovSharpness * dt));
     }
 
     private float GetAllowedDistance(Vector3 origin, Vector3 direction, float maxDistance)

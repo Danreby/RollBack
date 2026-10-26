@@ -120,7 +120,7 @@ public class CombatHUD : MonoBehaviour
         {
             Text controls = CreateText("Controls", canvasRect, 20, TextAnchor.LowerLeft, new Color(1f, 1f, 1f, 0.85f));
             controls.text = "WASD  mover        Shift  correr        Espaço  pular\n" +
-                            "Clique  atacar (segure o ritmo para o combo)\n" +
+                            "Clique  atacar (no ritmo, encadeia o combo)        Correndo + clique  investida\n" +
                             "Ctrl / Botão direito  esquivar (invencível no começo)\n" +
                             "E  pegar espada        G  largar        Scroll  zoom        Esc  soltar mouse";
             Place(controls.rectTransform, new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(28f, 24f), new Vector2(900f, 120f));
