@@ -663,11 +663,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f4f667dbd7d34af9b1cc2923450cd4c4, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  moveSpeed: 5
-  sprintSpeed: 9
-  groundAcceleration: 12
-  airAcceleration: 3
-  rotationSpeed: 12
+  walkSpeed: 2.4
+  moveSpeed: 5.5
+  sprintSpeed: 8.5
+  analogWalkThreshold: 0.6
+  velocityHalflife: 0.15
+  airVelocityHalflife: 0.35
+  rotationHalflife: 0.12
   gravity: -22
   jumpHeight: 1.6
   coyoteTime: 0.12
@@ -1151,6 +1153,29 @@ MonoBehaviour:
   attachRadius: 0.12
   maxSlide: 0.5
   blendSpeed: 10
+--- !u!114 &1032233710
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1032233698}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7c2e5a9f1b3d4e6f8a0b1c2d3e4f5a6b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  database: {fileID: 4900000, guid: 4f6b1d2a9c3e4b7d8a1f0e2d3c4b5a69, type: 3}
+  mode: 0
+  cycleModeKey: 283
+  searchInterval: 0.1
+  inertializationHalflife: 0.1
+  rootClampDistance: 0.15
+  rootAdjustmentHalflife: 0.2
+  playbackWarping: 1
+  footLocking: 1
+  footUnlockRadius: 0.25
+  showDebugInfo: 0
 --- !u!114 &1032233708
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1165,6 +1190,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   jumpKey: 32
   sprintKey: 304
+  walkKey: 308
+  walkToggleKey: 301
   dodgeKey: 306
   interactKey: 101
   dropKey: 103
@@ -1266,6 +1293,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 100050, guid: e57e9b8cd5e115f4f8d7736473e5c7fd, type: 3}
       insertIndex: -1
       addedObject: {fileID: 1032233709}
+    - targetCorrespondingSourceObject: {fileID: 100050, guid: e57e9b8cd5e115f4f8d7736473e5c7fd, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1032233710}
   m_SourcePrefab: {fileID: 100100000, guid: e57e9b8cd5e115f4f8d7736473e5c7fd, type: 3}
 --- !u!1001 &1193847386
 PrefabInstance:

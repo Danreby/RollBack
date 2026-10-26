@@ -13,6 +13,10 @@ public class AnimationEventSink : MonoBehaviour
     public event Action Footstep;
     public event Action Landed;
 
+    // Enquanto o Motion Matching anima a locomoção, os passos vêm dos contatos reais dos pés
+    // (ExternalStep); os eventos dos clipes do Animator (que não aparecem na tela) são ignorados.
+    public bool ExternalFootsteps { get; set; }
+
     private float lastStepTime = -999f;
 
     public void FootL(AnimationEvent evt) => Step(evt);
@@ -21,11 +25,23 @@ public class AnimationEventSink : MonoBehaviour
     public void Hit() { }
     public void WeaponSwitch() { }
 
+    public void ExternalStep()
+    {
+        RaiseStep();
+    }
+
     private void Step(AnimationEvent evt)
     {
+        if (ExternalFootsteps)
+            return;
         // Só o clipe dominante da mistura conta (evita passos de um clipe quase sem peso)
         if (evt != null && evt.animatorClipInfo.weight < 0.5f)
             return;
+        RaiseStep();
+    }
+
+    private void RaiseStep()
+    {
         if (Time.time - lastStepTime < minStepInterval)
             return;
         lastStepTime = Time.time;

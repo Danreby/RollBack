@@ -8,6 +8,10 @@ public class PlayerInputReader : MonoBehaviour
 {
     public KeyCode jumpKey     = KeyCode.Space;
     public KeyCode sprintKey   = KeyCode.LeftShift;
+    [Tooltip("Segurado: anda em vez de correr")]
+    public KeyCode walkKey     = KeyCode.LeftAlt;
+    [Tooltip("Alterna entre andar e correr")]
+    public KeyCode walkToggleKey = KeyCode.CapsLock;
     public KeyCode dodgeKey    = KeyCode.LeftControl;
     public KeyCode interactKey = KeyCode.E;
     public KeyCode dropKey     = KeyCode.G;
@@ -20,6 +24,8 @@ public class PlayerInputReader : MonoBehaviour
 
     public Vector2 Move { get; set; }
     public bool SprintHeld { get; set; }
+    public bool WalkHeld { get; set; }
+    public bool WalkTogglePressed { get; set; }
     public bool JumpPressed { get; set; }
     public bool AttackPressed { get; set; }
     public bool DodgePressed { get; set; }
@@ -38,6 +44,8 @@ public class PlayerInputReader : MonoBehaviour
         bool mouseCaptured = Cursor.lockState == CursorLockMode.Locked;
 
         SprintHeld      = Input.GetKey(sprintKey) || Input.GetKey(KeyCode.RightShift);
+        WalkHeld        = Input.GetKey(walkKey);
+        WalkTogglePressed = Input.GetKeyDown(walkToggleKey);
         JumpPressed     = Input.GetKeyDown(jumpKey);
         AttackPressed   = mouseCaptured && Input.GetMouseButtonDown(attackMouseButton);
         DodgePressed    = Input.GetKeyDown(dodgeKey) || (mouseCaptured && dodgeMouseButton >= 0 && Input.GetMouseButtonDown(dodgeMouseButton));
@@ -53,5 +61,6 @@ public class PlayerInputReader : MonoBehaviour
         DodgePressed    = false;
         InteractPressed = false;
         DropPressed     = false;
+        WalkTogglePressed = false;
     }
 }

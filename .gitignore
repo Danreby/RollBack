@@ -83,3 +83,10 @@ crashlytics-build.properties
 # Temporary auto-generated Android Assets
 /[Aa]ssets/[Ss]treamingAssets/aa.meta
 /[Aa]ssets/[Ss]treamingAssets/aa/*
+
+# Ferramentas do Motion Matching: saídas de build/treino (regeneráveis) e o projeto do harness
+Tools/MotionMatching/build/
+Tools/MotionMatching/Harness/bin/
+Tools/MotionMatching/Harness/obj/
+__pycache__/
+!Tools/MotionMatching/Harness/Harness.csproj
