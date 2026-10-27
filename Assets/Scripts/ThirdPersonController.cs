@@ -2,7 +2,7 @@ using System;
 using MotionMatching;
 using UnityEngine;
 
-// Locomoção em terceira pessoa: anda/corre relativo à câmera, pula e aplica gravidade.
+// Locomoção em terceira pessoa: anda/corre relativo à câmera, pula (com pulo duplo) e aplica gravidade.
 //
 // A velocidade e a rotação seguem o input por molas criticamente amortecidas (a "simulação" do
 // Motion Matching): aceleram e freiam de forma suave e previsível, e a mesma mola prevê a
@@ -10,6 +10,10 @@ using UnityEngine;
 // Durante ações do PlayerCombat (golpes e esquiva) o input de movimento é ignorado e o
 // deslocamento vem da própria animação (root motion), aplicado em OnAnimatorMove.
 // O tronco inclina para dentro das curvas e para frente/trás ao acelerar e frear.
+// Com a mira travada (TargetLock) o personagem fica de frente para o alvo e anda de lado/para trás
+// (strafe); disparar (Shift) solta a orientação e corre livre.
+// Golpes aéreos deixam a gravidade fraca (o personagem "flutua" no combo) e o lançador sobe junto
+// com a animação (deslocamento vertical do root motion).
 [RequireComponent(typeof(CharacterController))]
 public class ThirdPersonController : MonoBehaviour
 {
@@ -17,9 +21,11 @@ public class ThirdPersonController : MonoBehaviour
     [Tooltip("Andando (Alt segurado, Caps Lock alterna, ou direcional analógico pouco inclinado)")]
     public float walkSpeed = 2.4f;
     [Tooltip("Correndo (padrão)")]
-    public float moveSpeed = 5.5f;
-    [Tooltip("Disparada (Shift)")]
-    public float sprintSpeed = 8.5f;
+    public float moveSpeed = 7f;
+    [Tooltip("Disparada (Shift): a corrida a toda velocidade")]
+    public float sprintSpeed = 12.5f;
+    [Tooltip("Com a mira travada: velocidade andando de lado/para trás de frente para o alvo")]
+    public float strafeSpeed = 4.8f;
     [Tooltip("Direcional analógico abaixo disto anda em vez de correr")]
     [Range(0.1f, 1f)] public float analogWalkThreshold = 0.6f;
     [Tooltip("Tempo (s) para a velocidade cobrir metade do caminho até a desejada. Menor = arranca e freia mais seco")]
@@ -34,6 +40,11 @@ public class ThirdPersonController : MonoBehaviour
     public float jumpHeight = 1.6f;
     [Tooltip("Tempo depois de sair de uma borda em que ainda dá para pular")]
     public float coyoteTime = 0.12f;
+    [Tooltip("Pulo duplo (Espaço no ar)")]
+    public bool doubleJump = true;
+    public float doubleJumpHeight = 1.5f;
+    [Tooltip("Estado do Animator do pulo duplo")]
+    public string doubleJumpState = "DoubleJump";
     [Tooltip("Apertar pulo um pouco antes de tocar o chão ainda conta")]
     public float jumpBufferTime = 0.15f;
     public float groundCheckDistance = 0.2f;
@@ -70,6 +81,9 @@ public class ThirdPersonController : MonoBehaviour
     private bool isGrounded;
     private bool jumping;
     private bool walkToggled;
+    private bool usedDoubleJump;
+    private float hangUntil;
+    private float hangGravityScale = 1f;
     private float lastGroundedTime    = -999f;
     private float lastJumpPressedTime = -999f;
     private float ignoreGroundUntil;
@@ -79,6 +93,7 @@ public class ThirdPersonController : MonoBehaviour
     // Estado controlado pelo PlayerCombat
     private bool actionLocked;
     private float rootMotionScale;
+    private bool verticalRootMotion;
     private bool hasFacingOverride;
     private Vector3 facingOverride;
     private float facingOverrideSpeed;
@@ -97,6 +112,12 @@ public class ThirdPersonController : MonoBehaviour
     public CharacterController Controller => controller;
     public bool IsGrounded => isGrounded;
     public bool IsActionLocked => actionLocked;
+    public float VerticalVelocity => verticalVelocity;
+    // Alvo da mira travada: o personagem fica de frente para ele (definido pelo TargetLock)
+    public Transform LockTarget { get; set; }
+    public bool IsStrafing => LockTarget != null && !IsSprinting;
+    // Multiplicador da gravidade (golpes aéreos deixam o personagem quase parado no ar)
+    public float GravityScale { get; set; } = 1f;
     // Direção desejada relativa à câmera (magnitude 0..1)
     public Vector3 MoveDirection { get; private set; }
     public bool HasMoveInput => MoveDirection.sqrMagnitude > 0.01f;
@@ -114,6 +135,7 @@ public class ThirdPersonController : MonoBehaviour
     public Func<Vector3, Vector3> ActionMotionFilter { get; set; }
     // Disparado ao tocar o chão depois de um pulo/queda, com a velocidade vertical do impacto (m/s).
     public event Action<float> Landed;
+    public event Action DoubleJumped;
 
     private void Awake()
     {
@@ -166,6 +188,8 @@ public class ThirdPersonController : MonoBehaviour
             return;
 
         lastGroundedTime = Time.time;
+        usedDoubleJump   = false;
+        hangUntil        = 0f;
         if (!wasGrounded)
         {
             // Velocidade vertical ainda é a da queda: a gravidade só "cola" no chão depois deste passo.
@@ -228,6 +252,28 @@ public class ThirdPersonController : MonoBehaviour
         bool canJump  = !actionLocked && !jumping && Time.time - lastGroundedTime <= coyoteTime;
         if (buffered && canJump)
             Jump();
+        else if (buffered && doubleJump && !actionLocked && !isGrounded && !usedDoubleJump
+                 && Time.time - lastGroundedTime > coyoteTime)
+            DoubleJump();
+    }
+
+    // Segundo pulo, no ar: zera a queda, sobe de novo e permite mudar de direção na hora.
+    public void DoubleJump()
+    {
+        usedDoubleJump      = true;
+        jumping             = true;
+        lastJumpPressedTime = -999f;
+        hangUntil           = 0f;
+        verticalVelocity    = Mathf.Sqrt(2f * doubleJumpHeight * -gravity);
+        if (HasMoveInput)
+        {
+            float speed = Mathf.Max(planarVelocity.magnitude, IsWalking ? walkSpeed : moveSpeed);
+            planarVelocity  = MoveDirection.normalized * speed;
+            desiredRotation = Quaternion.LookRotation(MoveDirection);
+        }
+        if (animator != null && !string.IsNullOrEmpty(doubleJumpState))
+            animator.CrossFadeInFixedTime(doubleJumpState, 0.08f, 0, 0f);
+        DoubleJumped?.Invoke();
     }
 
     public void Jump()
@@ -250,11 +296,21 @@ public class ThirdPersonController : MonoBehaviour
     private void UpdateDesired()
     {
         desiredVelocity = Vector3.zero;
+        bool strafing = !actionLocked && IsStrafing;
+        if (strafing)
+        {
+            // Mira travada: de frente para o alvo, com ou sem input
+            Vector3 toTarget = LockTarget.position - transform.position;
+            toTarget.y = 0f;
+            if (toTarget.sqrMagnitude > 0.04f)
+                desiredRotation = Quaternion.LookRotation(toTarget);
+        }
         if (!actionLocked && HasMoveInput)
         {
-            float speed = IsSprinting ? sprintSpeed : (IsWalking ? walkSpeed : moveSpeed);
+            float speed = IsSprinting ? sprintSpeed : (IsWalking ? walkSpeed : (strafing ? strafeSpeed : moveSpeed));
             desiredVelocity = MoveDirection.normalized * speed;
-            desiredRotation = Quaternion.LookRotation(MoveDirection);
+            if (!strafing)
+                desiredRotation = Quaternion.LookRotation(MoveDirection);
 
             // Encostado numa parede: desliza ao longo dela em vez de "correr no lugar"
             if (Time.time - wallContactTime < 0.15f)
@@ -311,10 +367,23 @@ public class ThirdPersonController : MonoBehaviour
 
     private void UpdateGravity(float dt)
     {
+        if (verticalRootMotion)
+        {
+            // A altura vem da animação (OnAnimatorMove)
+            verticalVelocity = 0f;
+            return;
+        }
         if (isGrounded && verticalVelocity < 0f)
             verticalVelocity = -2f; // mantém o personagem colado no chão (rampas/degraus)
         else
-            verticalVelocity = Mathf.Max(verticalVelocity + gravity * dt, -50f);
+        {
+            float scale = GravityScale;
+            if (Time.time < hangUntil)
+                scale = Mathf.Min(scale, hangGravityScale);
+            // Flutuando no combo aéreo a queda também é contida (não acumula velocidade de queda)
+            float terminal = scale < 0.99f ? Mathf.Lerp(-6f, -50f, scale) : -50f;
+            verticalVelocity = Mathf.Max(verticalVelocity + gravity * scale * dt, Mathf.Min(terminal, verticalVelocity));
+        }
     }
 
     private void UpdateAnimator(float dt)
@@ -353,9 +422,11 @@ public class ThirdPersonController : MonoBehaviour
             return;
 
         Vector3 delta = animator.deltaPosition * rootMotionScale;
+        float rise = verticalRootMotion ? animator.deltaPosition.y : 0f;
         delta.y = 0f;
         if (ActionMotionFilter != null)
             delta = ActionMotionFilter(delta);
+        delta.y = rise;
         if (delta.sqrMagnitude > 1e-8f && controller.enabled)
             controller.Move(delta);
     }
@@ -416,12 +487,16 @@ public class ThirdPersonController : MonoBehaviour
 
     // ---- API usada pelo PlayerCombat ----
 
-    public void SetActionLock(bool locked, float rootMotion = 0f)
+    public void SetActionLock(bool locked, float rootMotion = 0f, bool vertical = false)
     {
-        actionLocked    = locked;
-        rootMotionScale = locked ? rootMotion : 0f;
+        actionLocked       = locked;
+        rootMotionScale    = locked ? rootMotion : 0f;
+        verticalRootMotion = locked && vertical;
+        if (verticalRootMotion)
+            LeaveGround();
         if (!locked)
         {
+            GravityScale = 1f;
             hasFacingOverride = false;
             // volta a seguir o input a partir da direção atual (sem "voltar" para a de antes do golpe)
             desiredRotation = transform.rotation;
@@ -453,6 +528,31 @@ public class ThirdPersonController : MonoBehaviour
             desiredRotation    = transform.rotation;
             angularVelocity    = Vector3.zero;
         }
+    }
+
+    // Tira o personagem do chão (lançador, golpes que sobem): o chão só volta a contar daqui a pouco.
+    public void LeaveGround(float seconds = 0.15f)
+    {
+        isGrounded        = false;
+        jumping           = true;
+        lastGroundedTime  = -999f;
+        ignoreGroundUntil = Time.time + seconds;
+    }
+
+    public void SetVerticalVelocity(float velocity)
+    {
+        verticalVelocity = velocity;
+        if (velocity > 0f)
+            LeaveGround(0.1f);
+    }
+
+    // Gravidade reduzida por um tempo (ex.: logo depois do lançador, para dar tempo de emendar o combo aéreo).
+    public void Hang(float seconds, float gravityScale)
+    {
+        hangUntil        = Time.time + seconds;
+        hangGravityScale = gravityScale;
+        if (verticalVelocity < 0f)
+            verticalVelocity = 0f;
     }
 
     // Deslocamento extra respeitando colisões (ex.: avanço automático até o alvo do golpe).

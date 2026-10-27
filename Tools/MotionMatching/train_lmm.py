@@ -304,18 +304,22 @@ def predict_trajectory(v0, a0, vd, yaw0, w0, yawd, hv, hr, times):
 
 def random_trajectories(n, rng):
     """Trajetórias (espaço do personagem, virado para +Z) parecidas com as do jogo."""
-    speeds = np.array([0.0, 2.4, 5.5, 8.5])
+    speeds = np.array([0.0, 2.4, 4.8, 7.0, 12.5])
     def pick_speed(k):
-        base = speeds[rng.integers(0, 4, k)]
+        base = speeds[rng.integers(0, len(speeds), k)]
         return np.where(base > 0, base * rng.uniform(0.6, 1.15, k), 0.0) * (rng.random(k) > 0.05)
+    # mira travada: o personagem encara o alvo e anda para qualquer lado (strafe)
+    strafing = rng.random(n) < 0.35
     cur_speed = pick_speed(n)
-    cur_ang = np.where(rng.random(n) < 0.7, rng.normal(0, 0.15, n), rng.uniform(-np.pi, np.pi, n))
+    cur_ang = np.where((rng.random(n) < 0.7) & ~strafing, rng.normal(0, 0.15, n), rng.uniform(-np.pi, np.pi, n))
     v0 = np.stack([np.sin(cur_ang) * cur_speed, np.zeros(n), np.cos(cur_ang) * cur_speed], -1)
     a0 = rng.normal(0, 3.0, (n, 3)) * (rng.random((n, 1)) < 0.5); a0[:, 1] = 0
     des_speed = pick_speed(n)
     des_ang = np.where(rng.random(n) < 0.5, rng.normal(0, 0.2, n), rng.uniform(-np.pi, np.pi, n))
     vd = np.stack([np.sin(des_ang) * des_speed, np.zeros(n), np.cos(des_ang) * des_speed], -1)
-    yawd = np.where(des_speed > 0, des_ang, rng.normal(0, 0.3, n))
+    yawd = np.where((des_speed > 0) & ~strafing, des_ang, rng.normal(0, 0.3, n))
+    des_ang = np.where(strafing, rng.uniform(-np.pi, np.pi, n), des_ang)
+    vd = np.stack([np.sin(des_ang) * des_speed, np.zeros(n), np.cos(des_ang) * des_speed], -1)
     w0 = rng.normal(0, 2.0, n) * (rng.random(n) < 0.5)
     hv = rng.uniform(0.12, 0.3, n)[:, None]
     hr = rng.uniform(0.08, 0.25, n)
@@ -384,8 +388,10 @@ def train_projector(data, Z, iters, seed=1234, batch=64, lr=1e-3, pool=400000):
                                    traj[rng.integers(0, len(traj), batch)])
         # às vezes a postura pedida é a outra (troca de arma)
         flip = rng.random(batch) < 0.15
-        lo, hi = X[:, stance_col].min(), X[:, stance_col].max()
-        q[flip, stance_col] = np.where(q[flip, stance_col] > (lo + hi) / 2, lo, hi)
+        nst = sizes[groups.index('stance')]
+        cols = slice(stance_col, stance_col + nst)
+        onehot = (np.eye(nst)[rng.integers(0, nst, batch)] - off[cols]) / scale[cols]
+        q[flip, cols] = onehot[flip]
         return q.astype(np.float32)
 
     params = run_loop('projector', step, params, opt_state, iters, make_batch)
@@ -418,7 +424,7 @@ def main():
     print(f"banco: {len(data.X)} frames, {data.nb} ossos, {data.X.shape[1]} features; jax {jax.devices()}")
 
     if args.stage in ('decompressor', 'all'):
-        params, Z = train_decompressor(data, args.iters or 60000)
+        params, Z = train_decompressor(data, args.iters or 80000)
         save_mlp(os.path.join(BUILD, 'lmm_decompressor.npz'), to_numpy(params['decompressor']),
                  dict(mean_in=np.zeros(data.X.shape[1] + NLATENT), std_in=np.ones(data.X.shape[1] + NLATENT),
                       mean_out=data.Dmean, std_out=data.Dstd))
@@ -427,10 +433,10 @@ def main():
         np.save(os.path.join(BUILD, 'latent.npy'), Z.astype(np.float32))
     Z = np.load(os.path.join(BUILD, 'latent.npy'))
     if args.stage in ('stepper', 'all'):
-        params, norm = train_stepper(data, Z, args.iters or 40000)
+        params, norm = train_stepper(data, Z, args.iters or 50000)
         save_mlp(os.path.join(BUILD, 'lmm_stepper.npz'), to_numpy(params), norm)
     if args.stage in ('projector', 'all'):
-        params, norm = train_projector(data, Z, args.iters or 60000)
+        params, norm = train_projector(data, Z, args.iters or 80000)
         save_mlp(os.path.join(BUILD, 'lmm_projector.npz'), to_numpy(params), norm)
 
 

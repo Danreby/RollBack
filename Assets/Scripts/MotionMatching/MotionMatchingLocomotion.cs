@@ -204,7 +204,7 @@ public class MotionMatchingLocomotion : MonoBehaviour
         ApplySettings();
 
         bool matching = mode != Mode.Animator && movement.InFreeLocomotion;
-        int stance = combat != null && combat.IsArmed ? 1 : 0;
+        int stance = combat != null ? Mathf.Clamp(combat.LocomotionStance, 0, db.StanceCount - 1) : 0;
         matcher.Update(dt, sim, stance, matching, external);
         if (!PoseIsValid(matcher.Output))
         {

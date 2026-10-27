@@ -1,0 +1,354 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a8d3a3a7c0931b22abfa5e79a7b46a25, type: 3}
+  m_Name: Adagas
+  m_EditorClassIdentifier: 
+  displayName: Adagas
+  locomotionStance: 2
+  animatorPose: 0.0
+  lightCombo:
+  - name: Talho
+    stateName: Q-Sword-Light-A
+    clip: {fileID: 7400000, guid: 777f2c51a5e10c923585e81793cefb4b, type: 3}
+    speed: 1.1
+    damage: 6
+    hitWindows:
+    - {x: 0.162, y: 0.293}
+    - {x: 0.366, y: 0.838}
+    hitBone: 18
+    comboTime: 0.898
+    recoveryTime: 0.898
+    endTime: 0.98
+    recoveryState: Q-Sword-Light-A-Rec
+    recoveryClip: {fileID: 7400000, guid: 46fe4654573aa9d1384ce3ca38ff84da, type: 3}
+    rootMotionScale: 1
+    rootTravel: 0.343
+    carrySpeed: 0
+    twoHanded: 0
+    knockback: 0.15
+    heavy: 0
+    reaction: 0
+    launchHeight: 0
+    transitionDuration: 0.1
+    verticalRootMotion: 0
+    airGravityScale: 1
+    slamHoldTime: 0
+    slamImpactTime: 0
+    slamRadius: 0
+  - name: Talho duplo
+    stateName: Q-Sword-Light-B
+    clip: {fileID: 7400000, guid: 63eb0687b43e83296b2fc0f75d29d608, type: 3}
+    speed: 1.1
+    damage: 6
+    hitWindows:
+    - {x: 0.442, y: 0.635}
+    hitBone: 18
+    comboTime: 0.695
+    recoveryTime: 0.85
+    endTime: 0.98
+    recoveryState: Q-Sword-Light-B-Rec
+    recoveryClip: {fileID: 7400000, guid: e29603b49fa485938f0976a49fbfcbd7, type: 3}
+    rootMotionScale: 1
+    rootTravel: 0.395
+    carrySpeed: 0
+    twoHanded: 0
+    knockback: 0.15
+    heavy: 0
+    reaction: 0
+    launchHeight: 0
+    transitionDuration: 0.1
+    verticalRootMotion: 0
+    airGravityScale: 1
+    slamHoldTime: 0
+    slamImpactTime: 0
+    slamRadius: 0
+  - name: Avanço cruzado
+    stateName: Q-Sword-Light-C
+    clip: {fileID: 7400000, guid: 015d1a6a804e1d8e9158d42a1f9e7788, type: 3}
+    speed: 1.1
+    damage: 8
+    hitWindows:
+    - {x: 0.48, y: 0.597}
+    hitBone: 18
+    comboTime: 0.657
+    recoveryTime: 0.85
+    endTime: 0.98
+    recoveryState: Q-Sword-Light-C-Rec
+    recoveryClip: {fileID: 7400000, guid: f69b3839f5395ce6e196fbfb5564538f, type: 3}
+    rootMotionScale: 1
+    rootTravel: 1.547
+    carrySpeed: 0
+    twoHanded: 0
+    knockback: 0.25
+    heavy: 0
+    reaction: 0
+    launchHeight: 0
+    transitionDuration: 0.1
+    verticalRootMotion: 0
+    airGravityScale: 1
+    slamHoldTime: 0
+    slamImpactTime: 0
+    slamRadius: 0
+  - name: Lâminas cruzadas
+    stateName: Q-Sword-Light-D
+    clip: {fileID: 7400000, guid: 47d7135fe326d0e05b4de2aa116b7ace, type: 3}
+    speed: 1.1
+    damage: 12
+    hitWindows:
+    - {x: 0.12, y: 0.195}
+    hitBone: 18
+    comboTime: 0.35
+    recoveryTime: 0.4
+    endTime: 0.6
+    recoveryState: 
+    recoveryClip: {fileID: 0}
+    rootMotionScale: 1
+    rootTravel: 1.797
+    carrySpeed: 0
+    twoHanded: 0
+    knockback: 1.2
+    heavy: 1
+    reaction: 0
+    launchHeight: 0
+    transitionDuration: 0.1
+    verticalRootMotion: 0
+    airGravityScale: 1
+    slamHoldTime: 0
+    slamImpactTime: 0
+    slamRadius: 0
+  heavyCombo:
+  - name: Gancho com adaga
+    stateName: Q-Melee-Hook
+    clip: {fileID: 7400000, guid: 80c045f90fe21369bb01e6d792ea7db2, type: 3}
+    speed: 1
+    damage: 11
+    hitWindows:
+    - {x: 0.48, y: 0.574}
+    hitBone: 18
+    comboTime: 0.694
+    recoveryTime: 0.744
+    endTime: 0.944
+    recoveryState: 
+    recoveryClip: {fileID: 0}
+    rootMotionScale: 1
+    rootTravel: 0.387
+    carrySpeed: 0
+    twoHanded: 0
+    knockback: 0.7
+    heavy: 1
+    reaction: 0
+    launchHeight: 0
+    transitionDuration: 0.1
+    verticalRootMotion: 0
+    airGravityScale: 1
+    slamHoldTime: 0
+    slamImpactTime: 0
+    slamRadius: 0
+  - name: Joelhada voadora
+    stateName: Q-Melee-Knee
+    clip: {fileID: 7400000, guid: 544cf41884b7ac1f5e43798711d56911, type: 3}
+    speed: 1
+    damage: 15
+    hitWindows:
+    - {x: 0.297, y: 0.366}
+    hitBone: 18
+    comboTime: 0.486
+    recoveryTime: 0.536
+    endTime: 0.736
+    recoveryState: 
+    recoveryClip: {fileID: 0}
+    rootMotionScale: 1
+    rootTravel: 1.408
+    carrySpeed: 0
+    twoHanded: 0
+    knockback: 3
+    heavy: 0
+    reaction: 3
+    launchHeight: 0
+    transitionDuration: 0.1
+    verticalRootMotion: 0
+    airGravityScale: 1
+    slamHoldTime: 0
+    slamImpactTime: 0
+    slamRadius: 0
+  launcher:
+    name: Lançador
+    stateName: Q-Sword-UpperCut
+    clip: {fileID: 7400000, guid: 0bddba1e4b70ecece0037d494a44add3, type: 3}
+    speed: 1
+    damage: 8
+    hitWindows:
+    - {x: 0.194, y: 0.449}
+    hitBone: 18
+    comboTime: 0.72
+    recoveryTime: 0.9
+    endTime: 0.98
+    recoveryState: 
+    recoveryClip: {fileID: 0}
+    rootMotionScale: 1
+    rootTravel: 0
+    carrySpeed: 0
+    twoHanded: 0
+    knockback: 0.2
+    heavy: 0
+    reaction: 2
+    launchHeight: 3.4
+    transitionDuration: 0.1
+    verticalRootMotion: 1
+    airGravityScale: 1
+    slamHoldTime: 0
+    slamImpactTime: 0
+    slamRadius: 0
+  airCombo:
+  - name: Corte aéreo
+    stateName: Q-Sword-Aerial-A
+    clip: {fileID: 7400000, guid: b43700de4bf91f43df9410a847e09356, type: 3}
+    speed: 1.2
+    damage: 8
+    hitWindows:
+    - {x: 0.48, y: 0.687}
+    hitBone: 18
+    comboTime: 0.737
+    recoveryTime: 0.787
+    endTime: 0.95
+    recoveryState: 
+    recoveryClip: {fileID: 0}
+    rootMotionScale: 1
+    rootTravel: 0
+    carrySpeed: 0
+    twoHanded: 0
+    knockback: 0.4
+    heavy: 0
+    reaction: 0
+    launchHeight: 0.55
+    transitionDuration: 0.08
+    verticalRootMotion: 0
+    airGravityScale: 0.12
+    slamHoldTime: 0
+    slamImpactTime: 0
+    slamRadius: 0
+  - name: Corte aéreo 2
+    stateName: Q-Sword-Aerial-B
+    clip: {fileID: 7400000, guid: ac88dec18cda856f2a4109a4a95ed279, type: 3}
+    speed: 1.2
+    damage: 9
+    hitWindows:
+    - {x: 0.451, y: 0.667}
+    hitBone: 18
+    comboTime: 0.717
+    recoveryTime: 0.767
+    endTime: 0.95
+    recoveryState: 
+    recoveryClip: {fileID: 0}
+    rootMotionScale: 1
+    rootTravel: 0
+    carrySpeed: 0
+    twoHanded: 0
+    knockback: 0.4
+    heavy: 0
+    reaction: 0
+    launchHeight: 0.6
+    transitionDuration: 0.08
+    verticalRootMotion: 0
+    airGravityScale: 0.12
+    slamHoldTime: 0
+    slamImpactTime: 0
+    slamRadius: 0
+  - name: Redemoinho aéreo
+    stateName: Q-Sword-Aerial-Spin
+    clip: {fileID: 7400000, guid: 6297a41bdcadbfe3c378c2c704143062, type: 3}
+    speed: 1.2
+    damage: 7
+    hitWindows:
+    - {x: 0.18, y: 0.287}
+    - {x: 0.68, y: 0.82}
+    hitBone: 18
+    comboTime: 0.85
+    recoveryTime: 0.9
+    endTime: 0.95
+    recoveryState: 
+    recoveryClip: {fileID: 0}
+    rootMotionScale: 1
+    rootTravel: 0
+    carrySpeed: 0
+    twoHanded: 0
+    knockback: 0.4
+    heavy: 1
+    reaction: 0
+    launchHeight: 0.7
+    transitionDuration: 0.08
+    verticalRootMotion: 0
+    airGravityScale: 0.12
+    slamHoldTime: 0
+    slamImpactTime: 0
+    slamRadius: 0
+  slam:
+    name: Golpe de queda
+    stateName: Q-Sword-GroundPound
+    clip: {fileID: 7400000, guid: 686c7f0bc89a46c0ab243885afb57e45, type: 3}
+    speed: 1
+    damage: 12
+    hitWindows:
+    - {x: 0.12, y: 0.32}
+    hitBone: 18
+    comboTime: 0.5
+    recoveryTime: 0.55
+    endTime: 0.85
+    recoveryState: 
+    recoveryClip: {fileID: 0}
+    rootMotionScale: 1
+    rootTravel: 0
+    carrySpeed: 0
+    twoHanded: 0
+    knockback: 1.2
+    heavy: 0
+    reaction: 4
+    launchHeight: 0
+    transitionDuration: 0.1
+    verticalRootMotion: 0
+    airGravityScale: 0.5
+    slamHoldTime: 0.18
+    slamImpactTime: 0.29
+    slamRadius: 2.8
+  dashAttack:
+    name: Investida
+    stateName: Q-Sword-Dash
+    clip: {fileID: 7400000, guid: 325f0af529d5fbc829faefbc805a6550, type: 3}
+    speed: 1.15
+    damage: 12
+    hitWindows:
+    - {x: 0.156, y: 0.249}
+    hitBone: 18
+    comboTime: 0.369
+    recoveryTime: 0.419
+    endTime: 0.619
+    recoveryState: 
+    recoveryClip: {fileID: 0}
+    rootMotionScale: 1
+    rootTravel: 4.028
+    carrySpeed: 0
+    twoHanded: 0
+    knockback: 0.8
+    heavy: 0
+    reaction: 0
+    launchHeight: 0
+    transitionDuration: 0.1
+    verticalRootMotion: 0
+    airGravityScale: 1
+    slamHoldTime: 0
+    slamImpactTime: 0
+    slamRadius: 0
+  dodgeState: 
+  dodgeClip: {fileID: 0}
+  attackRange: 1.6
+  idealDistance: 1.15
+  hitArcRange: 1.8

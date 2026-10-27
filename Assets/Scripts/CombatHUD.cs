@@ -3,8 +3,9 @@ using UnityEngine;
 using UnityEngine.UI;
 
 // HUD montado por código (não precisa de prefab nem de Canvas na cena): controles,
-// aviso de interação, arma atual, contador de combo, barras de vida dos bonecos,
-// marcador do alvo da mira assistida e números de dano.
+// aviso de interação, arsenal (teclas 1 a 5), contador de combo, medidor de estilo, barras de vida
+// dos bonecos, marcador do alvo da mira assistida e números de dano. A mira travada tem o seu
+// próprio indicador 3D (LockOnIndicator): com ela ligada o marcador simples some.
 public class CombatHUD : MonoBehaviour
 {
     public PlayerCombat player;
@@ -13,6 +14,14 @@ public class CombatHUD : MonoBehaviour
     public float comboResetTime = 2.5f;
     [Tooltip("Barras de vida só aparecem até esta distância")]
     public float healthBarRange = 30f;
+
+    [Header("Estilo")]
+    [Tooltip("Pontos para subir cada nível (D, C, B, A, S, SS, SSS)")]
+    public float styleRankSize = 100f;
+    [Tooltip("Pontos perdidos por segundo sem acertar (cresce com o nível)")]
+    public float styleDecay = 18f;
+    [Tooltip("Sem acertar por este tempo o estilo cai mais rápido")]
+    public float styleIdleTime = 2.5f;
 
     private class HealthBar
     {
@@ -43,6 +52,26 @@ public class CombatHUD : MonoBehaviour
     private RectTransform comboRoot;
     private CanvasGroup comboGroup;
     private RectTransform targetMarker;
+    private TargetLock targetLock;
+    private Text arsenalLabel;
+    private RectTransform styleRoot;
+    private CanvasGroup styleGroup;
+    private Text styleRank;
+    private Text styleName;
+    private RectTransform styleFill;
+    private float style;
+    private float stylePunch;
+    private int lastRank = -1;
+    private float lastStyleHit = -999f;
+    private readonly List<string> recentAttacks = new List<string>();
+
+    private static readonly string[] RankLetters = { "D", "C", "B", "A", "S", "SS", "SSS" };
+    private static readonly string[] RankNames = { "Desajeitado", "Certeiro", "Brutal", "Arrasador", "Sanguinário", "Selvagem", "Supremo" };
+    private static readonly Color[] RankColors =
+    {
+        new Color(0.7f, 0.75f, 0.8f), new Color(0.55f, 0.85f, 1f), new Color(0.5f, 1f, 0.6f), new Color(1f, 0.85f, 0.35f),
+        new Color(1f, 0.55f, 0.2f), new Color(1f, 0.3f, 0.25f), new Color(1f, 0.25f, 0.6f)
+    };
     private float comboPunch;
     private int comboCount;
     private float lastHitTime = -999f;
@@ -80,9 +109,12 @@ public class CombatHUD : MonoBehaviour
             player = FindFirstObjectByType<PlayerCombat>();
         if (player != null)
         {
-            player.HitLanded     += OnHitLanded;
-            player.WeaponChanged += OnWeaponChanged;
-            OnWeaponChanged(player.IsArmed);
+            player.HitLanded      += OnHitLanded;
+            player.AttackStarted  += OnAttackStarted;
+            player.WeaponChanged  += OnWeaponChanged;
+            player.ArsenalChanged += RefreshArsenal;
+            targetLock = player.GetComponent<TargetLock>();
+            OnWeaponChanged(player.Weapon);
         }
     }
 
@@ -90,8 +122,10 @@ public class CombatHUD : MonoBehaviour
     {
         if (player != null)
         {
-            player.HitLanded     -= OnHitLanded;
-            player.WeaponChanged -= OnWeaponChanged;
+            player.HitLanded      -= OnHitLanded;
+            player.AttackStarted  -= OnAttackStarted;
+            player.WeaponChanged  -= OnWeaponChanged;
+            player.ArsenalChanged -= RefreshArsenal;
         }
     }
 
@@ -119,15 +153,20 @@ public class CombatHUD : MonoBehaviour
         if (showControls)
         {
             Text controls = CreateText("Controls", canvasRect, 20, TextAnchor.LowerLeft, new Color(1f, 1f, 1f, 0.85f));
-            controls.text = "WASD  mover        Alt (segurar) / Caps Lock  andar        Shift  disparar        Espaço  pular\n" +
-                            "Clique  atacar (no ritmo, encadeia o combo)        Disparando + clique  investida\n" +
-                            "Ctrl / Botão direito  esquivar (invencível no começo)\n" +
-                            "E  pegar espada        G  largar        Scroll  zoom        Esc  soltar mouse        F2  modo da locomoção";
-            Place(controls.rectTransform, new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(28f, 24f), new Vector2(900f, 120f));
+            controls.text = "WASD  mover        Alt / Caps Lock  andar        Shift  disparar        Espaço  pular (2x no ar: pulo duplo)\n" +
+                            "Clique  golpe leve        Botão direito  golpe pesado (no meio da sequência muda o finalizador)\n" +
+                            "Q  lançador (sobe junto)        No ar: clique  combo aéreo,  botão direito  golpe de queda        Disparando + clique  investida\n" +
+                            "E / botão do meio  travar mira        Tab / puxão do mouse  trocar alvo        Ctrl  esquivar\n" +
+                            "F  pegar arma        G  largar        1-5  trocar arma        Scroll  zoom        Esc  soltar mouse        F2  modo da locomoção";
+            Place(controls.rectTransform, new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(28f, 24f), new Vector2(1200f, 150f));
         }
 
-        weaponLabel = CreateText("Weapon", canvasRect, 26, TextAnchor.UpperLeft, Color.white);
+        weaponLabel = CreateText("Weapon", canvasRect, 30, TextAnchor.UpperLeft, Color.white);
         Place(weaponLabel.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(28f, -24f), new Vector2(500f, 40f));
+        arsenalLabel = CreateText("Arsenal", canvasRect, 22, TextAnchor.UpperLeft, Color.white);
+        Place(arsenalLabel.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(28f, -66f), new Vector2(900f, 34f));
+
+        BuildStyleMeter();
 
         promptLabel = CreateText("Prompt", canvasRect, 32, TextAnchor.MiddleCenter, new Color(1f, 0.95f, 0.7f));
         Place(promptLabel.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 200f), new Vector2(700f, 50f));
@@ -149,6 +188,33 @@ public class CombatHUD : MonoBehaviour
         targetMarker.sizeDelta        = new Vector2(16f, 16f);
         targetMarker.localEulerAngles = new Vector3(0f, 0f, 45f);
         targetMarker.gameObject.SetActive(false);
+    }
+
+    private void BuildStyleMeter()
+    {
+        var go = new GameObject("Style", typeof(RectTransform), typeof(CanvasGroup));
+        styleRoot = go.GetComponent<RectTransform>();
+        styleRoot.SetParent(canvasRect, false);
+        Place(styleRoot, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-40f, -30f), new Vector2(320f, 170f));
+        styleRoot.pivot = new Vector2(1f, 1f);
+        styleGroup       = go.GetComponent<CanvasGroup>();
+        styleGroup.alpha = 0f;
+
+        styleRank = CreateText("Rank", styleRoot, 110, TextAnchor.UpperRight, Color.white);
+        styleRank.fontStyle = FontStyle.BoldAndItalic;
+        Place(styleRank.rectTransform, new Vector2(0f, 0.35f), new Vector2(1f, 1f), Vector2.zero, Vector2.zero, true);
+        styleName = CreateText("Name", styleRoot, 26, TextAnchor.MiddleRight, Color.white);
+        styleName.fontStyle = FontStyle.Italic;
+        Place(styleName.rectTransform, new Vector2(0f, 0.15f), new Vector2(1f, 0.35f), Vector2.zero, Vector2.zero, true);
+
+        RectTransform bar = CreateImage("Bar", styleRoot, new Color(0f, 0f, 0f, 0.55f));
+        Place(bar, new Vector2(0.25f, 0f), new Vector2(1f, 0.1f), Vector2.zero, Vector2.zero, true);
+        styleFill = CreateImage("Fill", bar, Color.white);
+        styleFill.anchorMin = Vector2.zero;
+        styleFill.anchorMax = Vector2.one;
+        styleFill.pivot     = new Vector2(0f, 0.5f);
+        styleFill.offsetMin = new Vector2(2f, 2f);
+        styleFill.offsetMax = new Vector2(-2f, -2f);
     }
 
     private Text CreateText(string objectName, RectTransform parent, int size, TextAnchor anchor, Color color)
@@ -213,6 +279,13 @@ public class CombatHUD : MonoBehaviour
 
     // ---- Eventos ----
 
+    private string currentAttackName;
+
+    private void OnAttackStarted(AttackData attack, int index)
+    {
+        currentAttackName = attack != null ? attack.name : null;
+    }
+
     private void OnHitLanded(DamageInfo info, Health target)
     {
         comboCount  = Time.unscaledTime - lastHitTime <= comboResetTime ? comboCount + 1 : 1;
@@ -220,12 +293,59 @@ public class CombatHUD : MonoBehaviour
         comboPunch  = info.heavy ? 0.6f : 0.35f;
         comboNumber.text = comboCount.ToString();
         SpawnDamageNumber(info);
+        AddStyle(info);
     }
 
-    private void OnWeaponChanged(bool armed)
+    // Estilo: variar os golpes rende mais que repetir o mesmo; golpes no ar, lançadores, quedas e
+    // finalizadores valem mais. Parado, o medidor esvazia.
+    private void AddStyle(DamageInfo info)
+    {
+        string attack = currentAttackName ?? "";
+        int repeats = 0;
+        foreach (string recent in recentAttacks)
+            if (recent == attack) repeats++;
+        recentAttacks.Add(attack);
+        if (recentAttacks.Count > 6)
+            recentAttacks.RemoveAt(0);
+
+        float points = 10f + info.amount * 0.6f;
+        if (info.airborneHit) points *= 1.35f;
+        if (info.reaction == HitReaction.Launch || info.reaction == HitReaction.Slam || info.reaction == HitReaction.Knockback)
+            points *= 1.6f;
+        else if (info.heavy)
+            points *= 1.3f;
+        points /= 1f + repeats * 0.7f;
+        // O medidor para no topo do SSS; níveis altos esvaziam mais rápido (UpdateStyle)
+        style        = Mathf.Min(style + points, styleRankSize * RankLetters.Length - 0.01f);
+        lastStyleHit = Time.unscaledTime;
+        stylePunch   = 0.25f;
+    }
+
+    private void OnWeaponChanged(MeleeWeapon weapon)
     {
         if (weaponLabel != null)
-            weaponLabel.text = armed ? "Arma: Espada" : "Arma: Punhos";
+            weaponLabel.text = "Arma: " + (weapon != null ? weapon.DisplayName : "Punhos");
+        RefreshArsenal();
+    }
+
+    private void RefreshArsenal()
+    {
+        if (arsenalLabel == null || player == null)
+            return;
+        var sb = new System.Text.StringBuilder();
+        AppendSlot(sb, 1, "Punhos", player.Weapon == null);
+        foreach (MeleeWeapon w in player.Arsenal)
+            if (w != null)
+                AppendSlot(sb, w.slot, w.DisplayName, w == player.Weapon);
+        arsenalLabel.text = sb.ToString();
+    }
+
+    private static void AppendSlot(System.Text.StringBuilder sb, int slot, string label, bool active)
+    {
+        if (sb.Length > 0)
+            sb.Append("    ");
+        sb.Append(active ? "<color=#ffd75a>" : "<color=#ffffffaa>");
+        sb.Append('[').Append(slot).Append("] ").Append(label).Append("</color>");
     }
 
     private void SpawnDamageNumber(DamageInfo info)
@@ -258,6 +378,7 @@ public class CombatHUD : MonoBehaviour
             promptLabel.text = promptText;
 
         UpdateCombo(dt);
+        UpdateStyle(dt);
         if (cam == null)
             return;
         UpdateHealthBars(cam, dt);
@@ -273,6 +394,31 @@ public class CombatHUD : MonoBehaviour
         comboRoot.localScale = Vector3.one * (1f + comboPunch);
         if (!visible && comboGroup.alpha <= 0f)
             comboCount = 0;
+    }
+
+    private void UpdateStyle(float dt)
+    {
+        int rank = Mathf.Clamp(Mathf.FloorToInt(style / styleRankSize), 0, RankLetters.Length - 1);
+        float decay = styleDecay * (1f + rank * 0.35f) * (Time.unscaledTime - lastStyleHit > styleIdleTime ? 3f : 1f);
+        style = Mathf.Max(0f, style - decay * dt);
+        rank  = Mathf.Clamp(Mathf.FloorToInt(style / styleRankSize), 0, RankLetters.Length - 1);
+
+        bool visible = style > 1f;
+        styleGroup.alpha = Mathf.MoveTowards(styleGroup.alpha, visible ? 1f : 0f, dt * (visible ? 8f : 2f));
+        if (rank != lastRank)
+        {
+            if (rank > lastRank)
+                stylePunch = 0.6f;
+            lastRank        = rank;
+            styleRank.text  = RankLetters[rank];
+            styleName.text  = RankNames[rank];
+            styleRank.color = RankColors[rank];
+            styleName.color = RankColors[rank];
+            styleFill.GetComponent<Image>().color = RankColors[rank];
+        }
+        stylePunch = Mathf.MoveTowards(stylePunch, 0f, dt * 2.5f);
+        styleRank.rectTransform.localScale = Vector3.one * (1f + stylePunch);
+        styleFill.localScale = new Vector3(Mathf.Repeat(style, styleRankSize) / styleRankSize, 1f, 1f);
     }
 
     private void UpdateHealthBars(Camera cam, float dt)
@@ -303,6 +449,8 @@ public class CombatHUD : MonoBehaviour
     private void UpdateTargetMarker(Camera cam)
     {
         Health target = player != null ? player.PreviewTarget : null;
+        if (targetLock != null && targetLock.IsLocked)
+            target = null; // a mira travada tem o indicador de prismas
         Vector2 local = Vector2.zero;
         bool show = target != null && WorldToCanvas(cam, target.transform.position + Vector3.up * 3.1f, out local);
         targetMarker.gameObject.SetActive(show);

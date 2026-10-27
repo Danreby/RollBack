@@ -1,0 +1,4 @@
+# fontes baixadas (Quaternius, CC0) e saídas intermediárias
+source/
+build_weapons.json
+__pycache__/

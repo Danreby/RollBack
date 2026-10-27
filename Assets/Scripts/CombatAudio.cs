@@ -1,7 +1,8 @@
 using UnityEngine;
 
 // Sons do player sintetizados por código (o projeto ainda não tem arquivos de áudio):
-// "whoosh" quando o golpe sai, impacto quando acerta, um sopro na esquiva, passos e pouso.
+// "whoosh" quando o golpe sai, impacto quando acerta, um sopro na esquiva e no pulo duplo,
+// estrondo do golpe de queda, um "tlim" cristalino ao travar a mira, passos e pouso.
 // Para usar sons de verdade, troque os AudioClips gerados em Awake por assets.
 [RequireComponent(typeof(AudioSource))]
 public class CombatAudio : MonoBehaviour
@@ -12,6 +13,7 @@ public class CombatAudio : MonoBehaviour
     public PlayerCombat combat;
     public ThirdPersonController movement;
     public AnimationEventSink animationEvents;
+    public TargetLock targetLock;
 
     private const int SampleRate = 44100;
 
@@ -24,6 +26,8 @@ public class CombatAudio : MonoBehaviour
     private AudioClip dodge;
     private AudioClip step;
     private AudioClip land;
+    private AudioClip lockOn;
+    private AudioClip unlock;
 
     private void Awake()
     {
@@ -40,6 +44,8 @@ public class CombatAudio : MonoBehaviour
         heavyHit = CreateImpact("HeavyHit", 0.3f, 70f, 4);
         step     = CreateThump("Step", 0.1f, 900f, 80f, 5);
         land     = CreateThump("Land", 0.22f, 650f, 55f, 6);
+        lockOn   = CreateChime("LockOn", 0.28f, 1320f, 1980f);
+        unlock   = CreateChime("Unlock", 0.18f, 990f, 660f);
 
         if (combat == null)
             combat = GetComponent<PlayerCombat>();
@@ -47,6 +53,8 @@ public class CombatAudio : MonoBehaviour
             movement = GetComponent<ThirdPersonController>();
         if (animationEvents == null)
             animationEvents = GetComponent<AnimationEventSink>();
+        if (targetLock == null)
+            targetLock = GetComponent<TargetLock>();
     }
 
     private void OnEnable()
@@ -58,11 +66,21 @@ public class CombatAudio : MonoBehaviour
             combat.SwingStarted += OnSwing;
             combat.HitLanded    += OnHit;
             combat.DodgeStarted += OnDodge;
+            combat.SlamLanded   += OnSlam;
         }
         if (movement != null)
-            movement.Landed += OnLanded;
+        {
+            movement.Landed       += OnLanded;
+            movement.DoubleJumped += OnDoubleJump;
+        }
         if (animationEvents != null)
             animationEvents.Footstep += OnFootstep;
+        if (targetLock != null)
+        {
+            targetLock.Locked   += OnLock;
+            targetLock.Switched += OnLock;
+            targetLock.Released += OnUnlock;
+        }
     }
 
     private void OnDisable()
@@ -72,16 +90,30 @@ public class CombatAudio : MonoBehaviour
             combat.SwingStarted -= OnSwing;
             combat.HitLanded    -= OnHit;
             combat.DodgeStarted -= OnDodge;
+            combat.SlamLanded   -= OnSlam;
         }
         if (movement != null)
-            movement.Landed -= OnLanded;
+        {
+            movement.Landed       -= OnLanded;
+            movement.DoubleJumped -= OnDoubleJump;
+        }
         if (animationEvents != null)
             animationEvents.Footstep -= OnFootstep;
+        if (targetLock != null)
+        {
+            targetLock.Locked   -= OnLock;
+            targetLock.Switched -= OnLock;
+            targetLock.Released -= OnUnlock;
+        }
     }
 
     private void OnSwing() => Play(source, swing, 0.45f, Random.Range(0.9f, 1.15f));
     private void OnDodge() => Play(source, dodge, 0.35f, Random.Range(0.95f, 1.05f));
     private void OnHit(DamageInfo info, Health target) => Play(source, info.heavy ? heavyHit : hit, 1f, Random.Range(0.92f, 1.08f));
+    private void OnLock(Health target) => Play(source, lockOn, 0.35f, 1f);
+    private void OnUnlock() => Play(source, unlock, 0.25f, 1f);
+    private void OnSlam(Vector3 point) => Play(source, heavyHit, 1f, 0.7f);
+    private void OnDoubleJump() => Play(movementSource, dodge, 0.3f, Random.Range(1.2f, 1.35f));
     private void OnFootstep() => Play(movementSource, step, footstepVolume, Random.Range(0.85f, 1.15f));
     private void OnLanded(float impact) => Play(movementSource, land, footstepVolume * Mathf.Clamp01(impact / 10f) * 2.5f, Random.Range(0.9f, 1.05f));
 
@@ -160,6 +192,24 @@ public class CombatAudio : MonoBehaviour
             data[i] = (Mathf.Sin(phase) * 0.7f + lp2 * 2.2f) * envelope;
         }
         return CreateClip(clipName, data, 0.8f);
+    }
+
+    // Duas notas senoidais curtas com brilho (harmônico) e decaimento rápido: som de mira travando.
+    private static AudioClip CreateChime(string clipName, float duration, float first, float second)
+    {
+        int count = Mathf.CeilToInt(duration * SampleRate);
+        var data  = new float[count];
+        float phase = 0f;
+        for (int i = 0; i < count; i++)
+        {
+            float t    = (float)i / SampleRate;
+            float freq = t < duration * 0.35f ? first : second;
+            phase     += 2f * Mathf.PI * freq / SampleRate;
+            float local = t < duration * 0.35f ? t : t - duration * 0.35f;
+            float envelope = Mathf.Exp(-local * 18f) * Mathf.Clamp01(local * 800f);
+            data[i] = (Mathf.Sin(phase) + 0.3f * Mathf.Sin(phase * 2f)) * envelope;
+        }
+        return CreateClip(clipName, data, 0.6f);
     }
 
     private static AudioClip CreateClip(string clipName, float[] data, float peak)

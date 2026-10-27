@@ -3,6 +3,9 @@ using UnityEngine;
 // Câmera orbital em terceira pessoa: o mouse gira, o scroll aproxima/afasta, ela colide
 // com o cenário (não atravessa chão nem paredes), treme nos impactos e abre um pouco o
 // campo de visão quando o personagem corre (sensação de velocidade).
+// Com a mira travada (TargetLock) a câmera gira sozinha para enquadrar o player e o alvo: fica
+// atrás do player olhando para o alvo, sobe/desce acompanhando um alvo lançado ao ar e se afasta
+// quando os dois se separam. O mouse para cima/baixo ainda ajusta a altura.
 // Esc solta o cursor; clicar na janela captura de novo.
 public class ThirdPersonCamera : MonoBehaviour
 {
@@ -31,9 +34,22 @@ public class ThirdPersonCamera : MonoBehaviour
     [Tooltip("Quanto do tremor some por segundo")]
     public float shakeDecay = 2f;
 
+    [Header("Mira travada")]
+    [Tooltip("Tempo (s) para a câmera cobrir metade do giro até enquadrar o alvo")]
+    public float lockOnHalflife = 0.12f;
+    [Tooltip("Inclinação da câmera com a mira travada (graus, para baixo)")]
+    public float lockOnPitch = 14f;
+    [Tooltip("Quanto o ponto de órbita vai na direção do alvo (0 = no player, 1 = no alvo)")]
+    [Range(0f, 0.6f)] public float lockOnPivotBias = 0.25f;
+    [Tooltip("Distância extra por metro de separação entre player e alvo")]
+    public float lockOnDistancePerMeter = 0.25f;
+    public float lockOnMaxExtraDistance = 4f;
+
     [Header("Velocidade")]
     [Tooltip("Graus a mais de campo de visão correndo na velocidade máxima. 0 desliga")]
     public float sprintFovBoost = 6f;
+    [Tooltip("Disparando a câmera também se afasta um pouco (metros a mais na velocidade máxima)")]
+    public float sprintDistanceBoost = 1.2f;
     [Tooltip("Quão rápido o campo de visão acompanha a velocidade")]
     public float fovSharpness = 4f;
 
@@ -42,6 +58,9 @@ public class ThirdPersonCamera : MonoBehaviour
     private Camera cam;
     private float baseFov;
     private ThirdPersonController targetController;
+    private TargetLock targetLock;
+    private float pitchOffset;
+    private float speedFactor;
 
     private float yaw;
     private float pitch = 15f;
@@ -76,10 +95,22 @@ public class ThirdPersonCamera : MonoBehaviour
         if (cam != null)
             baseFov = cam.fieldOfView;
         if (target != null)
+        {
             targetController = target.GetComponent<ThirdPersonController>();
+            targetLock       = target.GetComponent<TargetLock>();
+        }
         SetCursorLocked(true);
         SnapBehindTarget();
     }
+
+    // Apertar "travar" sem inimigo por perto: a câmera gira para trás do personagem.
+    public static void RecenterBehindTarget()
+    {
+        if (instance != null && instance.target != null)
+            instance.recenterUntil = Time.unscaledTime + 0.35f;
+    }
+
+    private float recenterUntil;
 
     // Coloca a câmera atrás do alvo na hora, sem suavização (início, teleporte, respawn).
     public void SnapBehindTarget()
@@ -98,17 +129,62 @@ public class ThirdPersonCamera : MonoBehaviour
             return;
 
         HandleCursor();
+        // Tempo real: a câmera continua suave durante o hit stop.
+        float dt = Time.unscaledDeltaTime;
+        bool locked = targetLock != null && targetLock.IsLocked;
+
         if (Cursor.lockState == CursorLockMode.Locked)
         {
-            yaw     += Input.GetAxis("Mouse X") * sensitivity;
-            pitch   -= Input.GetAxis("Mouse Y") * sensitivity * (invertY ? -1f : 1f);
+            float mouseY = Input.GetAxis("Mouse Y") * sensitivity * (invertY ? -1f : 1f);
+            if (locked)
+                pitchOffset = Mathf.Clamp(pitchOffset - mouseY, -20f, 35f); // o mouse X troca de alvo (TargetLock)
+            else
+            {
+                yaw   += Input.GetAxis("Mouse X") * sensitivity;
+                pitch -= mouseY;
+            }
             distance = Mathf.Clamp(distance - Input.GetAxis("Mouse ScrollWheel") * zoomSpeed, minDistance, maxDistance);
+        }
+
+        Vector3 desiredPivot = target.position + Vector3.up * pivotHeight;
+        float frameDistance  = distance;
+        if (locked)
+        {
+            // Atrás do player, olhando para o alvo
+            Vector3 aim     = targetLock.TargetPoint;
+            Vector3 toAim   = aim - desiredPivot;
+            Vector3 flat    = new Vector3(toAim.x, 0f, toAim.z);
+            float separation = flat.magnitude;
+            float blend     = 1f - Mathf.Exp(-0.693f * dt / Mathf.Max(0.01f, lockOnHalflife));
+            if (separation > 0.3f)
+            {
+                float wantedYaw = Mathf.Atan2(flat.x, flat.z) * Mathf.Rad2Deg;
+                yaw = Mathf.LerpAngle(yaw, wantedYaw, blend);
+            }
+            // Alvo acima (lançado): a câmera abaixa para olhar para cima; abaixo: sobe
+            float elevation = Mathf.Atan2(toAim.y, Mathf.Max(separation, 1f)) * Mathf.Rad2Deg;
+            float wantedPitch = lockOnPitch - elevation * 0.7f + pitchOffset;
+            pitch = Mathf.LerpAngle(pitch, wantedPitch, blend);
+            desiredPivot += Vector3.Lerp(Vector3.zero, toAim, lockOnPivotBias);
+            frameDistance += Mathf.Min(separation * lockOnDistancePerMeter, lockOnMaxExtraDistance);
+        }
+        else
+        {
+            pitchOffset = Mathf.MoveTowards(pitchOffset, 0f, dt * 40f);
+            if (Time.unscaledTime < recenterUntil)
+                yaw = Mathf.LerpAngle(yaw, target.eulerAngles.y, 1f - Mathf.Exp(-12f * dt));
         }
         pitch = Mathf.Clamp(pitch, minPitch, maxPitch);
 
-        // Tempo real: a câmera continua suave durante o hit stop.
-        float dt = Time.unscaledDeltaTime;
-        Vector3 desiredPivot = target.position + Vector3.up * pivotHeight;
+        if (targetController != null)
+        {
+            Vector3 v = targetController.Controller.velocity;
+            v.y = 0f;
+            float wanted = Mathf.InverseLerp(targetController.moveSpeed, targetController.sprintSpeed, v.magnitude);
+            speedFactor  = Mathf.Lerp(speedFactor, wanted, 1f - Mathf.Exp(-2.5f * dt));
+            frameDistance += sprintDistanceBoost * speedFactor;
+        }
+
         pivot = followSmoothTime > 0f
             ? Vector3.SmoothDamp(pivot, desiredPivot, ref pivotVelocity, followSmoothTime, Mathf.Infinity, dt)
             : desiredPivot;
@@ -117,7 +193,7 @@ public class ThirdPersonCamera : MonoBehaviour
         Vector3 back        = rotation * Vector3.back;
 
         // Aproxima na hora (para nunca atravessar nada) e afasta suavemente.
-        float allowed   = GetAllowedDistance(pivot, back, distance);
+        float allowed   = GetAllowedDistance(pivot, back, frameDistance);
         currentDistance = allowed < currentDistance
             ? allowed
             : Mathf.Lerp(currentDistance, allowed, 1f - Mathf.Exp(-6f * dt));

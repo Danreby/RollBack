@@ -338,7 +338,7 @@ namespace MotionMatching
                 Query[td + k * 2 + 0] = Normalize(td + k * 2 + 0, d.x);
                 Query[td + k * 2 + 1] = Normalize(td + k * 2 + 1, d.z);
             }
-            Query[Db.StanceFeature] = Db.NormalizedStance(stance);
+            Db.WriteStance(Query, stance);
 
             Vec3 velocity = inv * sim.Velocity;
             int rv = Db.RootVelocityFeature;

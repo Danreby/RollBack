@@ -11,7 +11,7 @@ namespace MotionMatching
     // relativa à raiz; os demais só têm rotação local (o comprimento vem do bind do modelo).
     public sealed class MotionDatabase
     {
-        public const int Version = 1;
+        public const int Version = 2;
 
         // Esqueleto
         public int BoneCount;
@@ -26,7 +26,7 @@ namespace MotionMatching
         public const float FrameRate = 60f;
         public int FrameCount;
         public Quat[] Rotations;            // [frame * BoneCount + bone], locais
-        public Vec3[] AngularVelocities;    // [frame * BoneCount + bone], locais
+        public Vec3[] AngularVelocities;    // [frame * BoneCount + bone], locais (calculadas na carga)
         public Vec3[] HipsPositions;        // quadril relativo à raiz
         public Vec3[] HipsVelocities;
         public Vec3[] RootVelocities;       // no espaço da raiz
@@ -104,8 +104,7 @@ namespace MotionMatching
             }
 
             FrameCount = r.ReadInt32();
-            Rotations = ReadQuats(r, FrameCount * BoneCount);
-            AngularVelocities = ReadVec3s(r, FrameCount * BoneCount);
+            Rotations = ReadPackedQuats(r, FrameCount * BoneCount);
             HipsPositions = ReadVec3s(r, FrameCount);
             HipsVelocities = ReadVec3s(r, FrameCount);
             RootVelocities = ReadVec3s(r, FrameCount);
@@ -115,6 +114,15 @@ namespace MotionMatching
             for (int i = 0; i < contacts.Length; i++)
                 Contacts[i] = contacts[i] != 0;
             NextFrame = ReadInts(r, FrameCount);
+
+            // Velocidades angulares locais: diferença para o próximo frame (os ciclos dão a volta)
+            AngularVelocities = new Vec3[FrameCount * BoneCount];
+            for (int f = 0; f < FrameCount; f++)
+            {
+                int a = f * BoneCount, b = NextFrame[f] * BoneCount;
+                for (int i = 0; i < BoneCount; i++)
+                    AngularVelocities[a + i] = Quat.ToScaledAngleAxis((Rotations[b + i] * Rotations[a + i].Inverse).Abs) * FrameRate;
+            }
 
             RangeCount = r.ReadInt32();
             RangeStart = ReadInts(r, RangeCount);
@@ -185,9 +193,16 @@ namespace MotionMatching
             return -1;
         }
 
-        public float NormalizedStance(int stance)
+        public int StanceCount => FeatureGroupSizes[System.Array.IndexOf(FeatureGroupNames, "stance")];
+
+        // Postura (0 = desarmado, 1 = duas mãos, 2 = uma mão) codificada como one-hot normalizado
+        public void WriteStance(float[] features, int stance)
         {
-            return (stance - FeatureOffset[StanceFeature]) / FeatureScale[StanceFeature];
+            for (int k = 0; k < StanceCount; k++)
+            {
+                int i = StanceFeature + k;
+                features[i] = ((k == stance ? 1f : 0f) - FeatureOffset[i]) / FeatureScale[i];
+            }
         }
 
         // ---- leitura binária (little endian) ----
@@ -212,6 +227,20 @@ namespace MotionMatching
             Buffer.BlockCopy(raw, 0, a, 0, raw.Length);
             if (!BitConverter.IsLittleEndian)
                 throw new NotSupportedException("plataforma big-endian não suportada");
+            return a;
+        }
+
+        internal static Quat[] ReadPackedQuats(BinaryReader r, int n)
+        {
+            byte[] raw = r.ReadBytes(n * 8);
+            var a = new Quat[n];
+            const float k = 1f / 32767f;
+            for (int i = 0; i < n; i++)
+            {
+                int o = i * 8;
+                a[i] = new Quat(BitConverter.ToInt16(raw, o) * k, BitConverter.ToInt16(raw, o + 2) * k,
+                                BitConverter.ToInt16(raw, o + 4) * k, BitConverter.ToInt16(raw, o + 6) * k).Normalized;
+            }
             return a;
         }
 

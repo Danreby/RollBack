@@ -8,14 +8,22 @@ Ubisoft La Forge) e no código de referência de Daniel Holden (Motion-Matching,
 
 ## Como funciona
 
-1. **Banco de movimento** (`build_database.py`): os clipes de parado/andar/correr da ExplosiveLLC
-   (desarmado e com a espada de duas mãos) são lidos direto dos `.FBX`, viram ciclos fechados a
-   60 fps e são reamostrados em várias escalas de tempo (andar 0.30–1.10x, correr 0.75–1.45x),
-   cobrindo de ~1 m/s a ~9 m/s. Para cada frame ficam a pose, as velocidades, o contato dos pés e
-   as *features* do Motion Matching:
+1. **Banco de movimento** (`build_database.py`): os clipes de parado/andar/correr/andar de lado da
+   ExplosiveLLC e da Quaternius (Universal Animation Library, CC0, convertida para o esqueleto do
+   RPG-Character por `Tools/AnimationImport`) são lidos direto dos `.FBX`, viram ciclos fechados a
+   60 fps e são reamostrados em várias escalas de tempo, cobrindo de ~1 m/s a ~14 m/s:
+   - **disparada**: a `Sprint_Loop` da Quaternius — tronco inclinado, passadas longas, braços
+     bombeando (a corrida "com toda a vontade"); 10–14 m/s. Com a espada de duas mãos, pernas e
+     tronco da disparada e braços segurando a espada (animação em camadas);
+   - correr 4,7–9 m/s, andar 0,9–3,6 m/s e andar de lado/para trás (mira travada) até 6,5 m/s;
+   - três posturas: desarmado, espada de duas mãos e arma de uma mão (adagas, espadão).
+
+   Para cada frame ficam a pose, as velocidades, o contato dos pés e as *features* do Motion
+   Matching:
    - posição e velocidade dos pés, velocidade do quadril (espaço do personagem);
-   - trajetória futura: posições e direções em +1/3, +2/3 e +1 s;
-   - postura (desarmado/armado), velocidade atual da raiz e parado/em movimento.
+   - trajetória futura: posições e direções em +1/3, +2/3 e +1 s (com a mira travada a direção
+     fica no alvo e a velocidade vai para o lado: o banco responde com os passos de lado);
+   - postura, velocidade atual da raiz e parado/em movimento.
 
    Cada grupo é normalizado pelo desvio padrão e multiplicado por um peso (`FEATURE_GROUPS`).
 2. **Redes** (`train_lmm.py`, JAX):
@@ -27,7 +35,8 @@ Ubisoft La Forge) e no código de referência de Daniel Holden (Motion-Matching,
 3. **Exportação** (`export_unity.py`) grava tudo num arquivo binário lido por
    `MotionDatabase.cs`.
 
-Em jogo, a cada quadro a simulação (molas criticamente amortecidas no `ThirdPersonController`)
+Em jogo (andar 2,4 m/s, correr 7 m/s, disparar 12,5 m/s, andar de lado com a mira travada
+4,8 m/s), a cada quadro a simulação (molas criticamente amortecidas no `ThirdPersonController`)
 prevê a trajetória do próximo segundo; a cada 0,1 s (ou quando o input muda de repente) o
 Projector escolhe o melhor ponto do banco, o Stepper avança e o Decompressor gera a pose. Trocas
 de trecho e a passagem para o Animator (golpes, esquiva, pulo) usam inertialização; os pés
@@ -76,6 +85,7 @@ python3 analyze.py build/harness/*.bin     # deslize dos pés, estalos, distânc
 
 ## Adicionar animações
 
-Acrescente o clipe em `CLIPS` (`build_database.py`) com a postura, o tipo (`idle`/`walk`/`run`)
-e as escalas de tempo, e rode os três passos de novo. O clipe precisa ser do esqueleto do
-RPG-Character (mesmos nomes de ossos).
+Acrescente o clipe em `CLIPS` (`build_database.py`) com a postura, o tipo
+(`idle`/`walk`/`run`/`sprint`/`strafe`) e as escalas de tempo, e rode os três passos de novo. O
+clipe precisa ser do esqueleto do RPG-Character (mesmos nomes de ossos); animações de outros
+esqueletos humanoides podem ser convertidas como em `Tools/AnimationImport/import_quaternius.py`.

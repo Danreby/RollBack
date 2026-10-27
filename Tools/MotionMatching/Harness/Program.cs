@@ -8,7 +8,7 @@ using MotionMatching;
 //   modo: learned | database | both (padrão)   dt: fixo (ex.: 0.016667) ou "random" (30-144 fps)
 public static class Program
 {
-    const float WalkSpeed = 2.4f, RunSpeed = 5.5f, SprintSpeed = 8.5f;
+    const float WalkSpeed = 2.4f, RunSpeed = 7.0f, SprintSpeed = 12.5f, StrafeSpeed = 4.8f;
     static float velocityHalflife = 0.15f, rotationHalflife = 0.12f;
 
     // Um trecho do cenário: direção do direcional (mundo), velocidade e postura
@@ -17,10 +17,11 @@ public static class Program
         public float duration, angleDeg, speed, spinDegPerSec;
         public int stance;
         public bool external;
-        public Segment(float duration, float angleDeg, float speed, int stance = 0, float spin = 0f, bool external = false)
+        public float? faceDeg;   // mira travada: encara esta direção e anda para qualquer lado
+        public Segment(float duration, float angleDeg, float speed, int stance = 0, float spin = 0f, bool external = false, float? face = null)
         {
             this.duration = duration; this.angleDeg = angleDeg; this.speed = speed; this.stance = stance;
-            spinDegPerSec = spin; this.external = external;
+            spinDegPerSec = spin; this.external = external; faceDeg = face;
         }
     }
 
@@ -42,6 +43,18 @@ public static class Program
                 new Segment(0.5f, 0, 0), new Segment(0.4f, 0, RunSpeed), new Segment(0.4f, 0, 0), new Segment(0.6f, 90, RunSpeed),
                 new Segment(0.3f, 90, 0), new Segment(0.8f, -45, WalkSpeed), new Segment(0.5f, 0, 0), new Segment(1.0f, 180, SprintSpeed),
                 new Segment(1.5f, 0, 0) },
+            ["lockon"] = new[] {
+                new Segment(0.5f, 0, 0, 0, 0, false, 0), new Segment(1.5f, -90, StrafeSpeed, 0, 0, false, 0),
+                new Segment(1.5f, 90, StrafeSpeed, 0, 0, false, 0), new Segment(1.2f, 180, StrafeSpeed, 0, 0, false, 0),
+                new Segment(1.2f, 45, StrafeSpeed, 0, 0, false, 0), new Segment(1.2f, -135, WalkSpeed, 0, 0, false, 0),
+                new Segment(1.0f, 0, 0, 0, 0, false, 0),
+                new Segment(1.5f, -90, StrafeSpeed, 1, 0, false, 0), new Segment(1.5f, 180, StrafeSpeed, 1, 0, false, 0),
+                new Segment(1.5f, 90, StrafeSpeed, 2, 0, false, 0), new Segment(1.5f, 180, WalkSpeed, 2, 0, false, 0),
+                new Segment(1.0f, 0, 0, 2, 0, false, 0) },
+            ["stance2"] = new[] {
+                new Segment(1f, 0, 0, 2), new Segment(2f, 0, WalkSpeed, 2), new Segment(2.5f, 0, RunSpeed, 2),
+                new Segment(2f, 0, SprintSpeed, 2), new Segment(2f, 90, RunSpeed, 2), new Segment(1.5f, 90, 0, 2),
+                new Segment(2f, 0, SprintSpeed, 1), new Segment(1.5f, 0, 0, 1) },
             ["external"] = new[] {
                 new Segment(0.5f, 0, 0), new Segment(2f, 0, RunSpeed), new Segment(0.8f, 0, 0, 0, 0, true),
                 new Segment(2f, 0, RunSpeed), new Segment(1.5f, 0, 0) },
@@ -148,7 +161,9 @@ public static class Program
             float angle = (seg.angleDeg + seg.spinDegPerSec * local) * (float)Math.PI / 180f;
             Vec3 desiredVelocity = new Vec3((float)Math.Sin(angle), 0f, (float)Math.Cos(angle)) * seg.speed;
             if (seg.external) desiredVelocity = Vec3.Zero;
-            if (desiredVelocity.Length > 0.01f)
+            if (seg.faceDeg.HasValue)
+                desiredRotation = Quat.FromYaw(seg.faceDeg.Value * (float)Math.PI / 180f);
+            else if (desiredVelocity.Length > 0.01f)
                 desiredRotation = Quat.YawFromDirection(desiredVelocity);
 
             sim.Step(desiredVelocity, desiredRotation, dt);

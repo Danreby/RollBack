@@ -13,6 +13,11 @@ using UnityEngine;
 // Depois da animação o braço esquerdo é ajustado (IK de dois ossos) para o punho deslizar ao
 // longo do cabo até MeleeWeapon.offHandGrip, logo abaixo da mão direita. Só age quando o punho
 // já está sobre a linha do cabo: golpes de uma mão e a mão solta no rolamento não são afetados.
+// Armas de uma mão (MeleeWeapon.allowOffHandGrip desligado) não puxam a mão esquerda.
+//
+// Segunda lâmina (adagas duplas): a mão esquerda copia, espelhada, a pegada dos dedos da direita
+// (o esqueleto do RPG-Character é simétrico: a rotação local espelhada no plano XY da mão é
+// (-x, -y, z, w)), então ela fecha em volta do cabo da segunda adaga.
 [DefaultExecutionOrder(50)]
 public class WeaponGripIK : MonoBehaviour
 {
@@ -33,6 +38,27 @@ public class WeaponGripIK : MonoBehaviour
     private int gripLayer = -1;
     private float actionWeight;
     private Transform upperArm, lowerArm, hand, indexRoot, littleRoot;
+    private Transform[] rightFingers, leftFingers;
+    private float mirrorWeight;
+
+    private static readonly HumanBodyBones[] FingerPairs =
+    {
+        HumanBodyBones.RightThumbProximal, HumanBodyBones.LeftThumbProximal,
+        HumanBodyBones.RightThumbIntermediate, HumanBodyBones.LeftThumbIntermediate,
+        HumanBodyBones.RightThumbDistal, HumanBodyBones.LeftThumbDistal,
+        HumanBodyBones.RightIndexProximal, HumanBodyBones.LeftIndexProximal,
+        HumanBodyBones.RightIndexIntermediate, HumanBodyBones.LeftIndexIntermediate,
+        HumanBodyBones.RightIndexDistal, HumanBodyBones.LeftIndexDistal,
+        HumanBodyBones.RightMiddleProximal, HumanBodyBones.LeftMiddleProximal,
+        HumanBodyBones.RightMiddleIntermediate, HumanBodyBones.LeftMiddleIntermediate,
+        HumanBodyBones.RightMiddleDistal, HumanBodyBones.LeftMiddleDistal,
+        HumanBodyBones.RightRingProximal, HumanBodyBones.LeftRingProximal,
+        HumanBodyBones.RightRingIntermediate, HumanBodyBones.LeftRingIntermediate,
+        HumanBodyBones.RightRingDistal, HumanBodyBones.LeftRingDistal,
+        HumanBodyBones.RightLittleProximal, HumanBodyBones.LeftLittleProximal,
+        HumanBodyBones.RightLittleIntermediate, HumanBodyBones.LeftLittleIntermediate,
+        HumanBodyBones.RightLittleDistal, HumanBodyBones.LeftLittleDistal,
+    };
 
     private void Awake()
     {
@@ -47,6 +73,15 @@ public class WeaponGripIK : MonoBehaviour
         hand       = animator.GetBoneTransform(HumanBodyBones.LeftHand);
         indexRoot  = animator.GetBoneTransform(HumanBodyBones.LeftIndexProximal);
         littleRoot = animator.GetBoneTransform(HumanBodyBones.LeftLittleProximal);
+
+        int pairs    = FingerPairs.Length / 2;
+        rightFingers = new Transform[pairs];
+        leftFingers  = new Transform[pairs];
+        for (int i = 0; i < pairs; i++)
+        {
+            rightFingers[i] = animator.GetBoneTransform(FingerPairs[2 * i]);
+            leftFingers[i]  = animator.GetBoneTransform(FingerPairs[2 * i + 1]);
+        }
     }
 
     private void Update()
@@ -59,8 +94,10 @@ public class WeaponGripIK : MonoBehaviour
     private void LateUpdate()
     {
         MeleeWeapon weapon = combat != null ? combat.Weapon : null;
+        MirrorFingers(weapon);
+
         bool rigReady = hand != null && upperArm != null && lowerArm != null && indexRoot != null && littleRoot != null;
-        bool allowed  = offHandIK && weapon != null && rigReady
+        bool allowed  = offHandIK && weapon != null && weapon.allowOffHandGrip && weapon.offhand == null && rigReady
                         && (!combat.IsAttacking || (combat.CurrentAttack != null && combat.CurrentAttack.twoHanded));
         actionWeight = Mathf.MoveTowards(actionWeight, allowed ? 1f : 0f, blendSpeed * Time.deltaTime);
         if (actionWeight <= 0f || weapon == null || !rigReady)
@@ -83,6 +120,25 @@ public class WeaponGripIK : MonoBehaviour
         SolveTwoBone(upperArm, lowerArm, hand, hand.position - axis * (along * weight));
         // A mão mantém a orientação da animação: o punho só desliza pelo cabo
         hand.rotation = handRotation;
+    }
+
+    // Dedos da mão esquerda = dedos da direita espelhados, enquanto houver segunda lâmina
+    private void MirrorFingers(MeleeWeapon weapon)
+    {
+        if (rightFingers == null)
+            return;
+        bool dual = weapon != null && weapon.offhand != null && weapon.offhand != weapon;
+        mirrorWeight = Mathf.MoveTowards(mirrorWeight, dual ? combat.WeaponBlend : 0f, blendSpeed * Time.deltaTime);
+        if (mirrorWeight <= 0f)
+            return;
+        for (int i = 0; i < rightFingers.Length; i++)
+        {
+            Transform r = rightFingers[i], l = leftFingers[i];
+            if (r == null || l == null)
+                continue;
+            Quaternion q = r.localRotation;
+            l.localRotation = Quaternion.Slerp(l.localRotation, new Quaternion(-q.x, -q.y, q.z, q.w), mirrorWeight);
+        }
     }
 
     // IK analítico de dois ossos: ajusta o cotovelo para a distância ombro-alvo e gira o braço até o alvo.

@@ -1,0 +1,300 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a8d3a3a7c0931b22abfa5e79a7b46a25, type: 3}
+  m_Name: Espadao
+  m_EditorClassIdentifier: 
+  displayName: Espadão
+  locomotionStance: 2
+  animatorPose: 0.0
+  lightCombo:
+  - name: Golpe pesado
+    stateName: Q-Sword-Heavy-A
+    clip: {fileID: 7400000, guid: 3fb482be8cc23aa3d5c0f4a1c1ec75a3, type: 3}
+    speed: 1
+    damage: 20
+    hitWindows:
+    - {x: 0.48, y: 0.565}
+    - {x: 0.582, y: 0.736}
+    hitBone: 18
+    comboTime: 0.796
+    recoveryTime: 0.85
+    endTime: 0.98
+    recoveryState: Q-Sword-Heavy-A-Rec
+    recoveryClip: {fileID: 7400000, guid: c0441fd728151b584ddc327d05fad50f, type: 3}
+    rootMotionScale: 1
+    rootTravel: 1.511
+    carrySpeed: 0
+    twoHanded: 0
+    knockback: 0.8
+    heavy: 1
+    reaction: 0
+    launchHeight: 0
+    transitionDuration: 0.1
+    verticalRootMotion: 0
+    airGravityScale: 1
+    slamHoldTime: 0
+    slamImpactTime: 0
+    slamRadius: 0
+  - name: Retorno pesado
+    stateName: Q-Sword-Heavy-B
+    clip: {fileID: 7400000, guid: acaf9dc28ba11908d6ae5187e05c853e, type: 3}
+    speed: 1
+    damage: 20
+    hitWindows:
+    - {x: 0.68, y: 0.887}
+    hitBone: 18
+    comboTime: 0.92
+    recoveryTime: 0.92
+    endTime: 0.98
+    recoveryState: Q-Sword-Heavy-B-Rec
+    recoveryClip: {fileID: 7400000, guid: 7ab56cf14e03142dd3b5bffe2e8c4f3f, type: 3}
+    rootMotionScale: 1
+    rootTravel: 0.818
+    carrySpeed: 0
+    twoHanded: 0
+    knockback: 0.8
+    heavy: 1
+    reaction: 0
+    launchHeight: 0
+    transitionDuration: 0.1
+    verticalRootMotion: 0
+    airGravityScale: 1
+    slamHoldTime: 0
+    slamImpactTime: 0
+    slamRadius: 0
+  - name: Estocada pesada
+    stateName: Q-Sword-Heavy-C
+    clip: {fileID: 7400000, guid: bb1dfe8e9a3b2a0954bbb3c826c3be15, type: 3}
+    speed: 1
+    damage: 26
+    hitWindows:
+    - {x: 0.611, y: 0.865}
+    hitBone: 18
+    comboTime: 0.92
+    recoveryTime: 0.92
+    endTime: 0.98
+    recoveryState: Q-Sword-Heavy-C-Rec
+    recoveryClip: {fileID: 7400000, guid: 27d0a91671f6c7857d6d2469128524f4, type: 3}
+    rootMotionScale: 1
+    rootTravel: 1.863
+    carrySpeed: 0
+    twoHanded: 0
+    knockback: 1.2
+    heavy: 1
+    reaction: 0
+    launchHeight: 0
+    transitionDuration: 0.1
+    verticalRootMotion: 0
+    airGravityScale: 1
+    slamHoldTime: 0
+    slamImpactTime: 0
+    slamRadius: 0
+  heavyCombo:
+  - name: Golpe devastador
+    stateName: Q-Sword-Heavy-D
+    clip: {fileID: 7400000, guid: 727a7ecc8721b3ca13519ca793e515ce, type: 3}
+    speed: 1
+    damage: 38
+    hitWindows:
+    - {x: 0.212, y: 0.291}
+    hitBone: 18
+    comboTime: 0.411
+    recoveryTime: 0.461
+    endTime: 0.661
+    recoveryState: 
+    recoveryClip: {fileID: 0}
+    rootMotionScale: 1
+    rootTravel: 1.54
+    carrySpeed: 0
+    twoHanded: 0
+    knockback: 4.5
+    heavy: 0
+    reaction: 3
+    launchHeight: 0
+    transitionDuration: 0.1
+    verticalRootMotion: 0
+    airGravityScale: 1
+    slamHoldTime: 0
+    slamImpactTime: 0
+    slamRadius: 0
+  launcher:
+    name: Lançador
+    stateName: Q-Sword-UpperCut
+    clip: {fileID: 7400000, guid: 0bddba1e4b70ecece0037d494a44add3, type: 3}
+    speed: 1
+    damage: 14
+    hitWindows:
+    - {x: 0.182, y: 0.437}
+    hitBone: 18
+    comboTime: 0.72
+    recoveryTime: 0.9
+    endTime: 0.98
+    recoveryState: 
+    recoveryClip: {fileID: 0}
+    rootMotionScale: 1
+    rootTravel: 0
+    carrySpeed: 0
+    twoHanded: 0
+    knockback: 0.2
+    heavy: 0
+    reaction: 2
+    launchHeight: 3.4
+    transitionDuration: 0.1
+    verticalRootMotion: 1
+    airGravityScale: 1
+    slamHoldTime: 0
+    slamImpactTime: 0
+    slamRadius: 0
+  airCombo:
+  - name: Corte aéreo
+    stateName: Q-Sword-Aerial-A
+    clip: {fileID: 7400000, guid: b43700de4bf91f43df9410a847e09356, type: 3}
+    speed: 0.9
+    damage: 8
+    hitWindows:
+    - {x: 0.48, y: 0.749}
+    hitBone: 18
+    comboTime: 0.799
+    recoveryTime: 0.849
+    endTime: 0.95
+    recoveryState: 
+    recoveryClip: {fileID: 0}
+    rootMotionScale: 1
+    rootTravel: 0
+    carrySpeed: 0
+    twoHanded: 0
+    knockback: 0.4
+    heavy: 0
+    reaction: 0
+    launchHeight: 0.55
+    transitionDuration: 0.08
+    verticalRootMotion: 0
+    airGravityScale: 0.12
+    slamHoldTime: 0
+    slamImpactTime: 0
+    slamRadius: 0
+  - name: Corte aéreo 2
+    stateName: Q-Sword-Aerial-B
+    clip: {fileID: 7400000, guid: ac88dec18cda856f2a4109a4a95ed279, type: 3}
+    speed: 0.9
+    damage: 9
+    hitWindows:
+    - {x: 0.406, y: 0.667}
+    hitBone: 18
+    comboTime: 0.717
+    recoveryTime: 0.767
+    endTime: 0.95
+    recoveryState: 
+    recoveryClip: {fileID: 0}
+    rootMotionScale: 1
+    rootTravel: 0
+    carrySpeed: 0
+    twoHanded: 0
+    knockback: 0.4
+    heavy: 0
+    reaction: 0
+    launchHeight: 0.6
+    transitionDuration: 0.08
+    verticalRootMotion: 0
+    airGravityScale: 0.12
+    slamHoldTime: 0
+    slamImpactTime: 0
+    slamRadius: 0
+  - name: Redemoinho aéreo
+    stateName: Q-Sword-Aerial-Spin
+    clip: {fileID: 7400000, guid: 6297a41bdcadbfe3c378c2c704143062, type: 3}
+    speed: 0.9
+    damage: 7
+    hitWindows:
+    - {x: 0.18, y: 0.303}
+    - {x: 0.655, y: 0.82}
+    hitBone: 18
+    comboTime: 0.85
+    recoveryTime: 0.9
+    endTime: 0.95
+    recoveryState: 
+    recoveryClip: {fileID: 0}
+    rootMotionScale: 1
+    rootTravel: 0
+    carrySpeed: 0
+    twoHanded: 0
+    knockback: 0.4
+    heavy: 1
+    reaction: 0
+    launchHeight: 0.7
+    transitionDuration: 0.08
+    verticalRootMotion: 0
+    airGravityScale: 0.12
+    slamHoldTime: 0
+    slamImpactTime: 0
+    slamRadius: 0
+  slam:
+    name: Golpe de queda
+    stateName: Q-Sword-GroundPound
+    clip: {fileID: 7400000, guid: 686c7f0bc89a46c0ab243885afb57e45, type: 3}
+    speed: 1
+    damage: 26
+    hitWindows:
+    - {x: 0.12, y: 0.32}
+    hitBone: 18
+    comboTime: 0.5
+    recoveryTime: 0.55
+    endTime: 0.85
+    recoveryState: 
+    recoveryClip: {fileID: 0}
+    rootMotionScale: 1
+    rootTravel: 0
+    carrySpeed: 0
+    twoHanded: 0
+    knockback: 1.2
+    heavy: 0
+    reaction: 4
+    launchHeight: 0
+    transitionDuration: 0.1
+    verticalRootMotion: 0
+    airGravityScale: 0.5
+    slamHoldTime: 0.18
+    slamImpactTime: 0.29
+    slamRadius: 4.5
+  dashAttack:
+    name: Investida do espadão
+    stateName: Q-Sword-Dash
+    clip: {fileID: 7400000, guid: 325f0af529d5fbc829faefbc805a6550, type: 3}
+    speed: 1
+    damage: 22
+    hitWindows:
+    - {x: 0.156, y: 0.249}
+    hitBone: 18
+    comboTime: 0.369
+    recoveryTime: 0.419
+    endTime: 0.619
+    recoveryState: 
+    recoveryClip: {fileID: 0}
+    rootMotionScale: 1
+    rootTravel: 4.028
+    carrySpeed: 0
+    twoHanded: 0
+    knockback: 1.5
+    heavy: 1
+    reaction: 0
+    launchHeight: 0
+    transitionDuration: 0.1
+    verticalRootMotion: 0
+    airGravityScale: 1
+    slamHoldTime: 0
+    slamImpactTime: 0
+    slamRadius: 0
+  dodgeState: 
+  dodgeClip: {fileID: 0}
+  attackRange: 2.6
+  idealDistance: 1.9
+  hitArcRange: 2.7

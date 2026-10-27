@@ -17,6 +17,22 @@ public interface IPushable
     Vector3 Push(Vector3 delta);
 }
 
+// Alvos que podem ser jogados para o ar e mantidos lá pelos golpes (malabarismo).
+public interface IAirborneTarget
+{
+    bool IsAirborne { get; }
+}
+
+// Como o alvo reage ao golpe.
+public enum HitReaction
+{
+    Normal,     // tranco e reação pelo lado do impacto
+    Heavy,      // reação forte (finalizadores)
+    Launch,     // lançado para o alto (lançador)
+    Knockback,  // arremessado para trás e cai
+    Slam,       // jogado contra o chão (golpe de queda / finalizador aéreo)
+}
+
 public struct DamageInfo
 {
     public float amount;
@@ -24,11 +40,14 @@ public struct DamageInfo
     public Vector3 direction;  // direção horizontal do golpe (do atacante para o alvo)
     public float knockback;    // distância do empurrão, em metros
     public bool heavy;         // golpe forte (finalizador): reação e feedback maiores
+    public HitReaction reaction;
+    public float launchHeight; // Launch: altura (m) que o alvo sobe; no ar: quanto o golpe o mantém subindo
+    public bool airborneHit;   // golpe dado no ar: mantém o alvo flutuando
     public GameObject source;
 }
 
-// Um golpe do combo. Os tempos são normalizados (0 = início do clipe, 1 = fim),
-// então continuam corretos mesmo se a velocidade do golpe mudar.
+// Um golpe. Os tempos são normalizados (0 = início do clipe, 1 = fim), então continuam
+// corretos mesmo se a velocidade do golpe mudar.
 [System.Serializable]
 public class AttackData
 {
@@ -54,6 +73,10 @@ public class AttackData
     [Tooltip("Aqui o golpe termina e o personagem volta para a locomoção")]
     [Range(0f, 1f)] public float endTime = 0.95f;
 
+    [Tooltip("Animação de recuperação tocada quando a sequência para neste golpe (estado do Animator; vazio = volta direto para a locomoção)")]
+    public string recoveryState;
+    public AnimationClip recoveryClip;
+
     [Tooltip("Escala do deslocamento da animação (root motion). 0 = golpe parado")]
     public float rootMotionScale = 1f;
     [Tooltip("Quanto a animação anda para frente do início ao fim, em unidades humanoides (curva RootT; a Unity multiplica pela escala do avatar). Com alvo, o passo é encurtado para o golpe terminar na distância ideal em vez de atropelar o alvo. 0 = não ajusta")]
@@ -66,9 +89,25 @@ public class AttackData
     public float knockback = 0.4f;
     [Tooltip("Finalizador: mais hit stop, tremor de câmera e reação forte no alvo")]
     public bool heavy;
+    public HitReaction reaction = HitReaction.Normal;
+    [Tooltip("Lançador: altura (m) que o alvo sobe. Golpes aéreos: impulso para cima que mantém o alvo no ar")]
+    public float launchHeight;
     public float transitionDuration = 0.1f;
 
+    [Header("Ar")]
+    [Tooltip("Sobe junto com a animação (deslocamento vertical do root motion), ex.: lançador")]
+    public bool verticalRootMotion;
+    [Tooltip("Golpe aéreo: a gravidade fica fraca enquanto ele dura (o personagem 'flutua' no combo)")]
+    [Range(0f, 1f)] public float airGravityScale = 1f;
+    [Tooltip("Golpe de queda: a animação congela aqui enquanto o personagem despenca (0 = não é golpe de queda)")]
+    [Range(0f, 1f)] public float slamHoldTime;
+    [Tooltip("Golpe de queda: ponto da animação em que ela continua ao tocar o chão (impacto)")]
+    [Range(0f, 1f)] public float slamImpactTime;
+    [Tooltip("Golpe de queda: raio da onda de choque ao tocar o chão")]
+    public float slamRadius;
+
     public float Duration => clip != null ? clip.length / Mathf.Max(0.05f, speed) : 0.8f;
+    public bool IsSlam => slamHoldTime > 0f;
 
     public float LastHitWindowEnd
     {
@@ -78,6 +117,18 @@ public class AttackData
             if (hitWindows != null)
                 foreach (Vector2 w in hitWindows) end = Mathf.Max(end, w.y);
             return end;
+        }
+    }
+
+    public float FirstHitWindowStart
+    {
+        get
+        {
+            if (hitWindows == null || hitWindows.Length == 0)
+                return 0.25f;
+            float start = 1f;
+            foreach (Vector2 w in hitWindows) start = Mathf.Min(start, w.x);
+            return start;
         }
     }
 }

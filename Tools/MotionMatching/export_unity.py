@@ -79,7 +79,7 @@ def export(with_networks=True):
     F = d['bone_rotations'].shape[0]
     w = Writer()
     w.raw(b'LMMD')
-    w.i32(1)
+    w.i32(2)
 
     w.i32(nb)
     for n in names:
@@ -93,9 +93,11 @@ def export(with_networks=True):
         w.i32(names.index(bone))
 
     w.i32(F)
-    rot = d['bone_rotations'].astype(np.float32)
-    w.floats(rot)
-    w.floats(d['bone_angular_velocities'])
+    # rotações em int16 (x, y, z, w * 32767), hemisfério w >= 0; as velocidades angulares são
+    # recalculadas na carga a partir do próximo frame
+    rot = d['bone_rotations'].astype(np.float64)
+    rot = np.where(rot[..., 3:4] < 0, -rot, rot)
+    w.raw(np.round(np.clip(rot, -1, 1) * 32767).astype('<i2').tobytes())
     w.floats(d['bone_positions'][:, 1])
     w.floats(d['bone_velocities'][:, 1])
     w.floats(d['bone_velocities'][:, 0])          # a raiz do banco está sempre virada para +Z

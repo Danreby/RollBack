@@ -1,7 +1,9 @@
-"""Monta o banco de movimento da locomoção a partir dos .FBX da ExplosiveLLC.
+"""Monta o banco de movimento da locomoção a partir dos .FBX da ExplosiveLLC e da Quaternius.
 
-Cada clipe de locomoção (parado, andando, correndo; desarmado e com a espada de duas mãos) vira
-um ciclo fechado a 60 fps. Os ciclos de andar/correr são reamostrados em várias escalas de tempo,
+Cada clipe de locomoção (parado, andando, correndo, disparando e andando de lado; desarmado, com a
+espada de duas mãos e com armas de uma mão) vira um ciclo fechado a 60 fps. A disparada é a
+"Sprint_Loop" da Universal Animation Library (Quaternius, CC0, convertida por
+Tools/AnimationImport/import_quaternius.py): tronco inclinado, passadas longas e braços bombeando. Os ciclos de andar/correr são reamostrados em várias escalas de tempo,
 o que cobre uma faixa contínua de velocidades. Para cada frame são guardados:
 
   * pose: rotações locais de todos os ossos e a posição do quadril (B_Pelvis) em relação à raiz;
@@ -29,19 +31,59 @@ OUT = os.path.join(HERE, 'build', 'database.npz')
 FPS = 60
 SOURCE_FPS = 30
 
-# (arquivo, postura 0=desarmado 1=armado, tipo, escalas de tempo)
-WALK_SCALES = np.round(np.arange(0.30, 1.101, 0.05), 3)
-RUN_SCALES = np.round(np.arange(0.75, 1.451, 0.05), 3)
-CLIPS = [
-    ('Unarmed/RPG-Character@Unarmed-Idle', 0, 'idle', [1.0]),
+QUATERNIUS = os.path.join(PROJECT, 'Assets', 'Animations', 'Quaternius')
+
+# Posturas de locomoção: 0 = desarmado (guarda de lutador), 1 = espada de duas mãos,
+# 2 = arma de uma mão (adagas e espadão, com as animações da Quaternius)
+STANCES = 3
+# Escalas de tempo de cada ciclo (o ajuste contínuo do ritmo em jogo cobre o intervalo entre elas)
+WALK_SCALES = np.round(np.arange(0.30, 1.101, 0.1), 3)
+RUN_SCALES = np.round(np.arange(0.75, 1.451, 0.1), 3)
+SPRINT_SCALES = [0.8, 0.95, 1.1]
+STRAFE_SCALES = [0.6, 0.8, 1.0, 1.2]
+ARMS = ('B_L_Clavicle', 'B_R_Clavicle')            # subárvores trocadas nas animações em camadas
+
+
+def E(name):
+    """Clipe da ExplosiveLLC."""
+    folder = name.split('-')[0] if not name.startswith('2Hand') else '2Hand-Sword'
+    return os.path.join(ANIMS, folder, f'RPG-Character@{name}.FBX')
+
+
+def Q(name):
+    """Clipe da Quaternius já convertido para o esqueleto do RPG-Character."""
+    return os.path.join(QUATERNIUS, f'{name}.fbx')
+
+
+# Fonte: caminho de um FBX, ou ('layer', base, braços): pernas/quadril/tronco da base e os
+# braços (clavículas para baixo) de outro clipe, no mesmo ritmo.
+CLIPS = []
+for stance, prefix in ((0, 'Unarmed'), (1, '2Hand-Sword')):
+    CLIPS += [
+        (E(f'{prefix}-Idle'), stance, 'idle', [1.0]),
+        (E(f'{prefix}-Run-Forward'), stance, 'run', RUN_SCALES),
+        (E(f'{prefix}-Strafe-Left'), stance, 'strafe', STRAFE_SCALES),
+        (E(f'{prefix}-Strafe-Right'), stance, 'strafe', STRAFE_SCALES),
+        (E(f'{prefix}-Strafe-Backward'), stance, 'strafe', STRAFE_SCALES),
+    ] + [(E(f'{prefix}-Run-{d}'), stance, 'strafe', STRAFE_SCALES)
+         for d in ('Left', 'Right', 'Backward', 'Forward-Left', 'Forward-Right', 'Backward-Left', 'Backward-Right')]
+CLIPS += [
     # Avanço com a guarda alta: é o "andar" do lutador desarmado
-    ('Unarmed/RPG-Character@Unarmed-Strafe-Forward', 0, 'walk', WALK_SCALES),
-    ('Unarmed/RPG-Character@Unarmed-Run-Forward', 0, 'run', RUN_SCALES),
-    ('2Hand-Sword/RPG-Character@2Hand-Sword-Idle', 1, 'idle', [1.0]),
-    ('2Hand-Sword/RPG-Character@2Hand-Sword-Walk', 1, 'walk', WALK_SCALES),
-    ('2Hand-Sword/RPG-Character@2Hand-Sword-Run-Forward', 1, 'run', RUN_SCALES),
-]
-KINDS = {'idle': 0, 'walk': 1, 'run': 2}
+    (E('Unarmed-Strafe-Forward'), 0, 'walk', WALK_SCALES),
+    (Q('Q-Sprint'), 0, 'sprint', SPRINT_SCALES),
+    (E('2Hand-Sword-Walk'), 1, 'walk', WALK_SCALES),
+    # disparada com a espada de duas mãos: pernas e tronco do sprint, braços segurando a espada
+    (('layer', Q('Q-Sprint'), E('2Hand-Sword-Run-Forward')), 1, 'sprint', SPRINT_SCALES),
+    (Q('Q-Sword-Idle'), 2, 'idle', [1.0]),
+    (Q('Q-Walk'), 2, 'walk', np.round(np.arange(0.8, 1.81, 0.2), 3)),
+    (Q('Q-Jog'), 2, 'run', np.round(np.arange(0.55, 1.051, 0.1), 3)),
+    (Q('Q-Sprint'), 2, 'sprint', SPRINT_SCALES),
+    (Q('Q-Walk-L'), 2, 'strafe', [1.0, 1.5, 2.0]),
+    (Q('Q-Walk-R'), 2, 'strafe', [1.0, 1.5, 2.0]),
+    (Q('Q-Walk-Bwd'), 2, 'strafe', [1.0, 1.5, 2.0]),
+] + [(('layer', E(f'Unarmed-Run-{d}'), Q('Q-Sword-Idle')), 2, 'strafe', STRAFE_SCALES)
+     for d in ('Left', 'Right', 'Backward', 'Forward-Left', 'Forward-Right', 'Backward-Left', 'Backward-Right')]
+KINDS = {'idle': 0, 'walk': 1, 'run': 2, 'sprint': 3, 'strafe': 4}
 
 FEET = ('B_L_Foot', 'B_R_Foot')
 TOES = ('B_L_Toe0', 'B_R_Toe0')
@@ -58,7 +100,7 @@ FEATURE_GROUPS = [
     ('hip_velocity', 3, 1.0),
     ('trajectory_positions', 6, 1.0),
     ('trajectory_directions', 6, 1.5),
-    ('stance', 1, 6.0),
+    ('stance', STANCES, 6.0),
     # Os ciclos têm velocidade constante: a velocidade atual da raiz diz qual escala de tempo
     # combina com o personagem agora (a trajetória futura sozinha puxa para a média do próximo 1 s)
     ('root_velocity', 2, 1.0),
@@ -108,16 +150,56 @@ def sample_keys(model, clip, names, parents):
     return lrot, lpos, gpos
 
 
+def clip_label(source):
+    if isinstance(source, tuple):
+        return f"{os.path.basename(source[1])} + braços de {os.path.basename(source[2])}"
+    return os.path.basename(source)
+
+
+def contact_phase(gpos, names):
+    """Fração do ciclo em que o pé esquerdo está mais baixo que o direito pela primeira vez."""
+    l, r = names.index('B_L_Toe0'), names.index('B_R_Toe0')
+    lower = gpos[:-1, l, 1] < gpos[:-1, r, 1]
+    start = int(np.argmax(lower & ~np.roll(lower, 1))) if lower.any() and not lower.all() else 0
+    return start / (len(gpos) - 1)
+
+
+def layered_keys(base, arms, names, parents):
+    """Corpo da animação 'base' com os braços (clavículas para baixo) da 'arms', no mesmo ritmo."""
+    lrot, lpos, gpos = (a.copy() for a in base)
+    arot = arms[0]
+    P, Pa = len(lrot) - 1, len(arot) - 1
+    shift = contact_phase(arms[2], names) - contact_phase(gpos, names)
+    overlay = set()
+    for i, n in enumerate(names):
+        p = i
+        while p >= 0:
+            if names[p] in ARMS:
+                overlay.add(i)
+                break
+            p = parents[p]
+    idx = sorted(overlay)
+    for k in range(P + 1):
+        u = ((k / P + shift) % 1.0) * Pa
+        k0 = int(np.floor(u)) % Pa
+        a = u - np.floor(u)
+        lrot[k, idx] = quat.slerp(arot[k0, idx], arot[k0 + 1, idx], np.full((len(idx), 1), a))
+    return lrot, lpos, gpos
+
+
 def make_cycle(lrot, lpos, gpos, names, kind):
     """Fecha o ciclo: raiz andando em linha reta com o corpo e correção linear do erro de loop."""
     P = len(lrot) - 1                       # período em keys (a última key repete a primeira)
     hips = names.index(HIPS)
     start = gpos[0, 0].copy()
     start[1] = 0.0
-    # Deslocamento real do corpo (o nó Motion de alguns clipes anda mais que o corpo)
-    travel = 0.0 if kind == 'idle' else gpos[P, hips, 2] - gpos[0, hips, 2]
+    # Deslocamento real do corpo no ciclo (o nó Motion de alguns clipes anda mais que o corpo);
+    # nos strafes ele é de lado ou para trás, com o personagem sempre virado para +Z
+    travel = np.zeros(3)
+    if kind != 'idle':
+        travel[[0, 2]] = gpos[P, hips, [0, 2]] - gpos[0, hips, [0, 2]]
     root = np.repeat(start[None], P + 1, axis=0)
-    root[:, 2] += travel * np.arange(P + 1) / P
+    root += travel[None] * (np.arange(P + 1) / P)[:, None]
 
     # Rotação da raiz: identidade (+Z). Pose do quadril relativa à raiz.
     lrot = lrot.copy()
@@ -150,9 +232,8 @@ def resample(lrot, lpos, travel, scale):
     rot = quat.slerp(lrot[k0], lrot[k0 + 1], a)
     pos = lpos[k0] * (1 - a) + lpos[k0 + 1] * a
     # raiz: reta com velocidade constante
-    pos[:, 0] = lpos[0, 0]
-    pos[:, 0, 2] += travel * np.arange(N) / N
-    return quat.normalize(rot), pos, actual, travel * FPS / N
+    pos[:, 0] = lpos[0, 0] + travel[None] * (np.arange(N) / N)[:, None]
+    return quat.normalize(rot), pos, actual, np.linalg.norm(travel) * FPS / N
 
 
 def periodic_velocities(rot, pos, cycle_travel):
@@ -162,8 +243,8 @@ def periodic_velocities(rot, pos, cycle_travel):
     prv = np.roll(np.arange(N), 1)
     pos_next = pos[nxt].copy()
     pos_prev = pos[prv].copy()
-    pos_next[-1, 0, 2] += cycle_travel           # raiz depois do fim do ciclo
-    pos_prev[0, 0, 2] -= cycle_travel
+    pos_next[-1, 0] += cycle_travel              # raiz depois do fim do ciclo
+    pos_prev[0, 0] -= cycle_travel
     vel = (pos_next - pos_prev) * FPS / 2
     d1 = quat.to_scaled_angle_axis(quat.abs(quat.mul_inv(rot[nxt], rot)))
     d0 = quat.to_scaled_angle_axis(quat.abs(quat.mul_inv(rot, rot[prv])))
@@ -188,11 +269,20 @@ def build():
     bind_lpos = np.array([U[n][:3, 3] if parents[b] < 0 else (np.linalg.inv(U[names[parents[b]]]) @ U[n])[:3, 3]
                           for b, n in enumerate(names)])
     report = []
-    for ci, (path, st, kind, scale_list) in enumerate(CLIPS):
-        clip = fbx.Scene(os.path.join(ANIMS, path + '.FBX'))
-        lrot, lpos, gpos = sample_keys(model, clip, names, parents)
+    cache = {}
+
+    def keys_of(path):
+        if path not in cache:
+            cache[path] = sample_keys(model, fbx.Scene(path), names, parents)
+        return cache[path]
+
+    for ci, (source, st, kind, scale_list) in enumerate(CLIPS):
+        if isinstance(source, tuple):
+            lrot, lpos, gpos = layered_keys(keys_of(source[1]), keys_of(source[2]), names, parents)
+        else:
+            lrot, lpos, gpos = keys_of(source)
         lrot, lpos, travel, erot, epos = make_cycle(lrot, lpos, gpos, names, kind)
-        report.append(f"{os.path.basename(path):40s} keys={len(lrot) - 1:3d} desloc/ciclo={travel:.3f} m "
+        report.append(f"{clip_label(source):58s} keys={len(lrot) - 1:3d} desloc/ciclo=({travel[0]:5.2f},{travel[2]:5.2f}) m "
                       f"erro de loop: {erot:.2f} graus, {epos * 100:.2f} cm")
         for s in scale_list:
             rot, pos, actual, speed = resample(lrot, lpos, travel, s)
@@ -250,7 +340,7 @@ def build():
             n = b - a
             j = i - a + k
             wraps, jj = divmod(j, n)
-            fut_pos[i] = gpos[a + jj, 0] + wraps * np.array([0.0, 0.0, travels[r]])
+            fut_pos[i] = gpos[a + jj, 0] + wraps * travels[r]
             fut_rot[i] = grot[a + jj, 0]
         rel = quat.inv_mul_vec(root_rot, fut_pos - root_pos)
         d = quat.inv_mul_vec(root_rot, quat.mul_vec(fut_rot, np.array([0.0, 0.0, 1.0])))
@@ -262,7 +352,7 @@ def build():
         char_space_vel(hips),
         np.concatenate(traj_pos, axis=-1),
         np.concatenate(traj_dir, axis=-1),
-        np.array(stance)[range_of][:, None].astype(np.float64),
+        np.eye(STANCES)[np.array(stance)[range_of]],
         quat.inv_mul_vec(root_rot, gvel[:, 0])[:, [0, 2]],
         (np.array(kinds)[range_of] != KINDS['idle'])[:, None].astype(np.float64),
     ], axis=-1)
@@ -290,7 +380,7 @@ def build():
              contact_states=contacts, range_starts=starts, range_stops=stops,
              range_stance=np.array(stance), range_kind=np.array(kinds), range_scale=np.array(scales),
              range_speed=np.array(speeds), range_clip=np.array(clip_ids), range_travel=np.array(travels),
-             clip_names=np.array([c[0] for c in CLIPS]), next_frame=next_frame,
+             clip_names=np.array([clip_label(c[0]) for c in CLIPS]), next_frame=next_frame,
              features=features.astype(np.float32), features_raw=raw.astype(np.float32),
              features_offset=offset.astype(np.float32), features_scale=scale.astype(np.float32),
              feature_groups=np.array([g[0] for g in FEATURE_GROUPS]),

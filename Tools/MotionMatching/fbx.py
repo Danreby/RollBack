@@ -1,16 +1,18 @@
-"""Leitor mínimo de FBX binário (7.x) e avaliação da hierarquia/animação.
+"""Leitura e escrita mínimas de FBX binário (7.x) e avaliação da hierarquia/animação.
 
 Usado para extrair as poses das animações da ExplosiveLLC direto dos arquivos .FBX, no mesmo
-espaço que a Unity usa depois da importação (X espelhado, centímetros -> metros).
+espaço que a Unity usa depois da importação (X espelhado, centímetros -> metros), e para gravar
+animações novas no mesmo esqueleto (clonando um FBX existente e trocando as curvas).
 """
 import struct, zlib
 import numpy as np
 from collections import defaultdict
 
 class Node:
-    __slots__ = ('name', 'props', 'children')
-    def __init__(self, name, props, children):
+    __slots__ = ('name', 'props', 'children', 'ptypes')
+    def __init__(self, name, props, children, ptypes=None):
         self.name, self.props, self.children = name, props, children
+        self.ptypes = ptypes if ptypes is not None else [None] * len(props)
     def find(self, name):
         for c in self.children:
             if c.name == name:
@@ -24,6 +26,10 @@ class Node:
 _ARR = {'f': ('f', 4), 'd': ('d', 8), 'l': ('q', 8), 'i': ('i', 4), 'b': ('b', 1)}
 
 def _read_prop(data, o):
+    v, o2 = _read_prop_value(data, o)
+    return v, o2, chr(data[o])
+
+def _read_prop_value(data, o):
     t = chr(data[o]); o += 1
     if t == 'Y': return struct.unpack_from('<h', data, o)[0], o + 2
     if t == 'C': return bool(data[o]), o + 1
@@ -42,7 +48,10 @@ def _read_prop(data, o):
         n = struct.unpack_from('<I', data, o)[0]; o += 4
         raw = data[o:o + n]; o += n
         if t == 'S':
-            return raw.decode('utf-8', 'replace'), o
+            try:
+                return raw.decode('utf-8'), o
+            except UnicodeDecodeError:
+                return raw, o
         return raw, o
     raise ValueError('tipo de propriedade desconhecido %r em %d' % (t, o - 1))
 
@@ -55,10 +64,11 @@ def _read_node(data, o, wide):
     if end == 0:
         return None, o
     name = data[o:o + nlen].decode('ascii', 'replace'); o += nlen
-    props = []
+    props, ptypes = [], []
     for _ in range(nprops):
-        p, o = _read_prop(data, o)
+        p, o, t = _read_prop(data, o)
         props.append(p)
+        ptypes.append(t)
     children = []
     sentinel = 25 if wide else 13
     while o < end - sentinel or (o < end and end - o > sentinel):
@@ -68,7 +78,7 @@ def _read_node(data, o, wide):
             break
         children.append(c)
         o = o2
-    return Node(name, props, children), end
+    return Node(name, props, children, ptypes), end
 
 def read(path):
     data = open(path, 'rb').read()
@@ -84,6 +94,65 @@ def read(path):
         top.append(n)
         o = o2
     return Node('<root>', [version], top)
+
+# ---- Escrita ----
+
+_FOOT_ID = b'\xfa\xbc\xab\x09\xd0\xc8\xd4\x66\xb1\x76\xfb\x83\x1c\xf7\x26\x7e'
+_FOOT_MAGIC = b'\xf8\x5a\x8c\x6a\xde\xf5\xd9\x7e\xec\xe9\x0c\xe3\x75\x8f\x29\x0b'
+
+def _encode_prop(t, v):
+    if t == 'Y': return b'Y' + struct.pack('<h', v)
+    if t == 'C': return b'C' + bytes([1 if v else 0])
+    if t == 'I': return b'I' + struct.pack('<i', v)
+    if t == 'F': return b'F' + struct.pack('<f', v)
+    if t == 'D': return b'D' + struct.pack('<d', v)
+    if t == 'L': return b'L' + struct.pack('<q', v)
+    if t in _ARR:
+        fmt, size = _ARR[t]
+        raw = struct.pack('<%d%s' % (len(v), fmt), *v)
+        enc = 0
+        if len(raw) > 128:
+            raw = zlib.compress(raw)
+            enc = 1
+        return t.encode() + struct.pack('<III', len(v), enc, len(raw)) + raw
+    if t in 'SR':
+        raw = v if isinstance(v, (bytes, bytearray)) else str(v).encode('utf-8')
+        return t.encode() + struct.pack('<I', len(raw)) + raw
+    raise ValueError('tipo de propriedade desconhecido %r' % t)
+
+def _encode_node(node, offset, wide, is_last=False):
+    """Bytes do nó começando em 'offset' (o deslocamento final é absoluto no arquivo)."""
+    props = b''.join(_encode_prop(t, v) for t, v in zip(node.ptypes, node.props))
+    name = node.name.encode('ascii')
+    head = 25 if wide else 13
+    sentinel = b'\0' * head
+    body_start = offset + head + len(name) + len(props)
+    body = b''
+    pos = body_start
+    for k, c in enumerate(node.children):
+        b = _encode_node(c, pos, wide, k == len(node.children) - 1)
+        body += b
+        pos += len(b)
+    if node.children or (not node.props and not is_last):
+        body += sentinel
+        pos += len(sentinel)
+    fmt = '<QQQ' if wide else '<III'
+    return struct.pack(fmt, pos, len(node.ptypes), len(props)) + bytes([len(name)]) + name + props + body
+
+def write(path, root):
+    """Grava a árvore (root.props[0] = versão) como FBX binário."""
+    version = root.props[0]
+    wide = version >= 7500
+    out = bytearray(b'Kaydara FBX Binary  \x00\x1a\x00' + struct.pack('<I', version))
+    for k, c in enumerate(root.children):
+        out += _encode_node(c, len(out), wide, k == len(root.children) - 1)
+    out += b'\0' * (25 if wide else 13)
+    out += _FOOT_ID + b'\0' * 4
+    pad = ((len(out) + 15) & ~15) - len(out)
+    out += b'\0' * (pad if pad else 16)
+    out += struct.pack('<I', version) + b'\0' * 120 + _FOOT_MAGIC
+    with open(path, 'wb') as f:
+        f.write(out)
 
 def props70(node):
     """Dicionário nome -> valores de um bloco Properties70."""
