@@ -45,20 +45,28 @@ travam no chão durante o contato (IK) e, quando precisam mudar de lugar sem a a
 
 ## Resultados (medidos com o Harness, mesmos inputs)
 
-| | Antes (blend tree) | Motion Matching (banco) | Learned Motion Matching |
-|---|---|---|---|
-| Deslize do pé no chão, média (arrancar/parar) | 152 cm/s | 0,6 cm/s | 0,4 cm/s |
-| Deslize do pé no chão, média (andar/correr/parar) | 39 cm/s | 1,2 cm/s | 0,3 cm/s |
-| Deslize do pé no chão, média (curvas) | 84 cm/s | 1,3 cm/s | 1,0 cm/s |
+Deslize do pé apoiado (velocidade da ponta do pé no chão; os passos procedurais de arrancar/parar
+ficam de fora), média por cenário:
 
-Redes: Decompressor reconstrói as juntas com erro médio de 0,29 cm (máx. 2,4 cm); o Stepper
-sozinho deriva menos de 1 cm em 2 s; a inferência em C# bate com a do treino (diferença < 5e-5).
-Custo em .NET 8: ~0,05 ms/frame (banco) e ~0,2–0,4 ms/frame (LMM).
+| Cenário | Motion Matching (banco) | Learned Motion Matching |
+|---|---|---|
+| andar → correr 7 m/s → disparar 12,5 m/s → parar | 0,9 cm/s | 0,4 cm/s |
+| arrancar/parar e mudar de direção | 0,3 cm/s | 0,3 cm/s |
+| curvas | 1,4 cm/s | 1,7 cm/s |
+| mira travada (de lado, para trás, nas 3 posturas) | 2,0 cm/s | 0,6 cm/s |
+| troca de postura / arma de uma mão | 1,3 / 0,3 cm/s | 0,4 / 0,2 cm/s |
+
+(Com o blend tree antigo, antes do Motion Matching, o pé deslizava 39–152 cm/s em testes equivalentes,
+ainda com as velocidades antigas de 5,5/8,5 m/s.)
+
+Redes: Decompressor reconstrói as juntas com erro médio de 0,52 cm (p99 1,6 cm); o Stepper
+sozinho deriva menos de 1 cm em 20 frames (a busca roda a cada 6); a inferência em C# bate com a
+do treino (diferença < 4e-5). Custo em .NET 8: ~0,05 ms/frame (banco) e ~0,2–0,3 ms/frame (LMM).
 
 ## Regerar
 
 Requisitos: Python 3 com `numpy`, `jax`, `optax` (e `matplotlib` para `analyze.py`).
-O treino roda em CPU (~45 min no total).
+O treino roda em CPU (~1 h no total; cada etapa pode rodar sozinha: `python3 train_lmm.py stepper`).
 
 ```bash
 cd Tools/MotionMatching
