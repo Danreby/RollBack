@@ -14,95 +14,95 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   displayName: Espada
   locomotionStance: 1
-  animatorPose: 1.0
+  animatorPose: 1
   lightCombo:
-  - name: Corte 1
-    stateName: Attack1
-    clip: {fileID: 7400000, guid: af338c1078ee8cf46b75a5a81e3a18a8, type: 2}
-    speed: 1
+  - name: Corte
+    stateName: HM_Slash
+    clip: {fileID: 3094330708855449807, guid: ef751e951ed91ed4fbc94d82726c9eed, type: 3}
+    speed: 1.25
     damage: 12
     hitWindows:
-    - {x: 0.56, y: 0.86}
+    - {x: 0.19, y: 0.34}
     hitBone: 18
-    comboTime: 0.84
-    recoveryTime: 0.88
-    endTime: 1
+    comboTime: 0.4
+    recoveryTime: 0.52
+    endTime: 0.82
     recoveryState: 
     recoveryClip: {fileID: 0}
     rootMotionScale: 1
-    rootTravel: 0.763
+    rootTravel: 0
     carrySpeed: 0
     twoHanded: 0
     knockback: 0.35
     heavy: 0
     reaction: 0
     launchHeight: 0
-    transitionDuration: 0.12
+    transitionDuration: 0.08
     verticalRootMotion: 0
     airGravityScale: 1
     slamHoldTime: 0
     slamImpactTime: 0
     slamRadius: 0
-  - name: Corte duplo
-    stateName: Attack2
-    clip: {fileID: 7400000, guid: d66c78f79b6f52546b16a38fda9defd1, type: 2}
-    speed: 1
-    damage: 9
+  - name: Estocada
+    stateName: HM_Thrust
+    clip: {fileID: 3094330708855449807, guid: 04d7996e4b80c684a97630c930541aff, type: 3}
+    speed: 1.3
+    damage: 13
     hitWindows:
-    - {x: 0.38, y: 0.49}
-    - {x: 0.56, y: 0.67}
+    - {x: 0.21, y: 0.36}
     hitBone: 18
-    comboTime: 0.7
-    recoveryTime: 0.78
-    endTime: 0.95
+    comboTime: 0.4
+    recoveryTime: 0.52
+    endTime: 0.8
     recoveryState: 
     recoveryClip: {fileID: 0}
     rootMotionScale: 1
-    rootTravel: 1.731
+    rootTravel: 0
     carrySpeed: 0
     twoHanded: 0
-    knockback: 0.25
+    knockback: 0.5
     heavy: 0
     reaction: 0
     launchHeight: 0
-    transitionDuration: 0.1
+    transitionDuration: 0.07
     verticalRootMotion: 0
     airGravityScale: 1
     slamHoldTime: 0
     slamImpactTime: 0
     slamRadius: 0
-  - name: Corte 3
-    stateName: Attack3
-    clip: {fileID: 7400000, guid: c1ce24d6f5ffadd408fa0669230d7956, type: 2}
-    speed: 1
-    damage: 14
+  - name: "Corte girat\xF3rio"
+    stateName: HM_Sweep
+    clip: {fileID: 3094330708855449807, guid: a3b2bd75dc433e742844e9c7e0ecb01e, type: 3}
+    speed: 1.2
+    damage: 20
     hitWindows:
-    - {x: 0.32, y: 0.47}
+    - {x: 0.26, y: 0.42}
     hitBone: 18
-    comboTime: 0.55
-    recoveryTime: 0.62
-    endTime: 0.85
+    comboTime: 0.72
+    recoveryTime: 0.6
+    endTime: 0.86
     recoveryState: 
     recoveryClip: {fileID: 0}
     rootMotionScale: 1
-    rootTravel: 1.43
+    rootTravel: 0
     carrySpeed: 0
-    twoHanded: 0
-    knockback: 0.4
-    heavy: 0
-    reaction: 0
+    twoHanded: 1
+    knockback: 1.3
+    heavy: 1
+    reaction: 3
     launchHeight: 0
-    transitionDuration: 0.1
+    transitionDuration: 0.08
     verticalRootMotion: 0
     airGravityScale: 1
     slamHoldTime: 0
     slamImpactTime: 0
     slamRadius: 0
-  - name: Corte 4
+  heavyCombo:
+  - name: Golpe forte
     stateName: Attack4
     clip: {fileID: 7400000, guid: b68649dc7afc70141b3b2a40f71fb48c, type: 2}
     speed: 1
-    damage: 14
+    damage: 22
     hitWindows:
     - {x: 0.64, y: 0.81}
     hitBone: 18
@@ -115,90 +115,7 @@ MonoBehaviour:
     rootTravel: 1.486
     carrySpeed: 0
     twoHanded: 0
-    knockback: 0.4
-    heavy: 0
-    reaction: 0
-    launchHeight: 0
-    transitionDuration: 0.1
-    verticalRootMotion: 0
-    airGravityScale: 1
-    slamHoldTime: 0
-    slamImpactTime: 0
-    slamRadius: 0
-  - name: Giro com salto
-    stateName: Attack6
-    clip: {fileID: 7400000, guid: 0f2e039e60da3564b8c354387456a3ee, type: 2}
-    speed: 1
-    damage: 7
-    hitWindows:
-    - {x: 0.06, y: 0.14}
-    - {x: 0.22, y: 0.31}
-    - {x: 0.4, y: 0.5}
-    hitBone: 18
-    comboTime: 0.6
-    recoveryTime: 0.66
-    endTime: 0.9
-    recoveryState: 
-    recoveryClip: {fileID: 0}
-    rootMotionScale: 1
-    rootTravel: 1.341
-    carrySpeed: 0
-    twoHanded: 0
-    knockback: 0.25
-    heavy: 0
-    reaction: 0
-    launchHeight: 0
-    transitionDuration: 0.1
-    verticalRootMotion: 0
-    airGravityScale: 1
-    slamHoldTime: 0
-    slamImpactTime: 0
-    slamRadius: 0
-  - name: Corte 7
-    stateName: Attack7
-    clip: {fileID: 7400000, guid: 418bf0e22e72d16489db9ed668a5c524, type: 2}
-    speed: 1
-    damage: 12
-    hitWindows:
-    - {x: 0.39, y: 0.48}
-    hitBone: 18
-    comboTime: 0.55
-    recoveryTime: 0.6
-    endTime: 0.8
-    recoveryState: 
-    recoveryClip: {fileID: 0}
-    rootMotionScale: 1
-    rootTravel: 0
-    carrySpeed: 0
-    twoHanded: 0
-    knockback: 0.4
-    heavy: 0
-    reaction: 0
-    launchHeight: 0
-    transitionDuration: 0.1
-    verticalRootMotion: 0
-    airGravityScale: 1
-    slamHoldTime: 0
-    slamImpactTime: 0
-    slamRadius: 0
-  - name: Finalizador
-    stateName: Attack8
-    clip: {fileID: 7400000, guid: 7e342335f3e22154198346862446f2ab, type: 2}
-    speed: 1
-    damage: 20
-    hitWindows:
-    - {x: 0.3, y: 0.76}
-    hitBone: 18
-    comboTime: 0.9
-    recoveryTime: 0.95
-    endTime: 1
-    recoveryState: 
-    recoveryClip: {fileID: 0}
-    rootMotionScale: 1
-    rootTravel: 0.733
-    carrySpeed: 0
-    twoHanded: 0
-    knockback: 1.2
+    knockback: 1
     heavy: 1
     reaction: 1
     launchHeight: 0
@@ -208,227 +125,63 @@ MonoBehaviour:
     slamHoldTime: 0
     slamImpactTime: 0
     slamRadius: 0
-  heavyCombo:
-  - name: Estocada
-    stateName: Q-Sword-Regular-A
-    clip: {fileID: 7400000, guid: 23326f7ffba8daf70143f8ebbf355208, type: 3}
-    speed: 1
-    damage: 14
-    hitWindows:
-    - {x: 0.442, y: 0.674}
-    hitBone: 18
-    comboTime: 0.734
-    recoveryTime: 0.85
-    endTime: 0.98
-    recoveryState: Q-Sword-Regular-A-Rec
-    recoveryClip: {fileID: 7400000, guid: 78079b52952296c03d39bfc9a542dc87, type: 3}
-    rootMotionScale: 1
-    rootTravel: 0.899
-    carrySpeed: 0
-    twoHanded: 0
-    knockback: 0.6
-    heavy: 0
-    reaction: 0
-    launchHeight: 0
-    transitionDuration: 0.1
-    verticalRootMotion: 0
-    airGravityScale: 1
-    slamHoldTime: 0
-    slamImpactTime: 0
-    slamRadius: 0
-  - name: Corte rasteiro
-    stateName: Q-Sword-Regular-B
-    clip: {fileID: 7400000, guid: 63584d4e8eaa71482cdcdfbe74e27cff, type: 3}
-    speed: 1
-    damage: 15
-    hitWindows:
-    - {x: 0.371, y: 0.567}
-    hitBone: 18
-    comboTime: 0.627
-    recoveryTime: 0.85
-    endTime: 0.98
-    recoveryState: Q-Sword-Regular-B-Rec
-    recoveryClip: {fileID: 7400000, guid: 4b13d688ddc50223e03cf46bda520899, type: 3}
-    rootMotionScale: 1
-    rootTravel: 0.057
-    carrySpeed: 0
-    twoHanded: 0
-    knockback: 0.5
-    heavy: 0
-    reaction: 0
-    launchHeight: 0
-    transitionDuration: 0.1
-    verticalRootMotion: 0
-    airGravityScale: 1
-    slamHoldTime: 0
-    slamImpactTime: 0
-    slamRadius: 0
-  - name: Corte giratório
-    stateName: Q-Sword-Regular-C
-    clip: {fileID: 7400000, guid: 582125e432407d2f4495ddf8914ff545, type: 3}
-    speed: 1
-    damage: 24
-    hitWindows:
-    - {x: 0.28, y: 0.353}
-    hitBone: 18
-    comboTime: 0.473
-    recoveryTime: 0.523
-    endTime: 0.723
-    recoveryState: 
-    recoveryClip: {fileID: 0}
-    rootMotionScale: 1
-    rootTravel: 1.698
-    carrySpeed: 0
-    twoHanded: 0
-    knockback: 3.5
-    heavy: 0
-    reaction: 3
-    launchHeight: 0
-    transitionDuration: 0.1
-    verticalRootMotion: 0
-    airGravityScale: 1
-    slamHoldTime: 0
-    slamImpactTime: 0
-    slamRadius: 0
   launcher:
-    name: Lançador
-    stateName: Q-Sword-UpperCut
-    clip: {fileID: 7400000, guid: 0bddba1e4b70ecece0037d494a44add3, type: 3}
+    name: 
+    stateName: 
+    clip: {fileID: 0}
     speed: 1
     damage: 10
     hitWindows:
-    - {x: 0.182, y: 0.449}
+    - {x: 0.3, y: 0.5}
     hitBone: 18
-    comboTime: 0.72
-    recoveryTime: 0.9
-    endTime: 0.98
+    comboTime: 0.6
+    recoveryTime: 0.8
+    endTime: 0.95
     recoveryState: 
     recoveryClip: {fileID: 0}
     rootMotionScale: 1
     rootTravel: 0
     carrySpeed: 0
     twoHanded: 0
-    knockback: 0.2
+    knockback: 0.4
     heavy: 0
-    reaction: 2
-    launchHeight: 3.4
+    reaction: 0
+    launchHeight: 0
     transitionDuration: 0.1
-    verticalRootMotion: 1
+    verticalRootMotion: 0
     airGravityScale: 1
     slamHoldTime: 0
     slamImpactTime: 0
     slamRadius: 0
-  airCombo:
-  - name: Corte aéreo
-    stateName: Q-Sword-Aerial-A
-    clip: {fileID: 7400000, guid: b43700de4bf91f43df9410a847e09356, type: 3}
-    speed: 1
-    damage: 8
-    hitWindows:
-    - {x: 0.48, y: 0.728}
-    hitBone: 18
-    comboTime: 0.778
-    recoveryTime: 0.828
-    endTime: 0.95
-    recoveryState: 
-    recoveryClip: {fileID: 0}
-    rootMotionScale: 1
-    rootTravel: 0
-    carrySpeed: 0
-    twoHanded: 0
-    knockback: 0.4
-    heavy: 0
-    reaction: 0
-    launchHeight: 0.55
-    transitionDuration: 0.08
-    verticalRootMotion: 0
-    airGravityScale: 0.12
-    slamHoldTime: 0
-    slamImpactTime: 0
-    slamRadius: 0
-  - name: Corte aéreo 2
-    stateName: Q-Sword-Aerial-B
-    clip: {fileID: 7400000, guid: ac88dec18cda856f2a4109a4a95ed279, type: 3}
-    speed: 1
-    damage: 9
-    hitWindows:
-    - {x: 0.406, y: 0.667}
-    hitBone: 18
-    comboTime: 0.717
-    recoveryTime: 0.767
-    endTime: 0.95
-    recoveryState: 
-    recoveryClip: {fileID: 0}
-    rootMotionScale: 1
-    rootTravel: 0
-    carrySpeed: 0
-    twoHanded: 0
-    knockback: 0.4
-    heavy: 0
-    reaction: 0
-    launchHeight: 0.6
-    transitionDuration: 0.08
-    verticalRootMotion: 0
-    airGravityScale: 0.12
-    slamHoldTime: 0
-    slamImpactTime: 0
-    slamRadius: 0
-  - name: Redemoinho aéreo
-    stateName: Q-Sword-Aerial-Spin
-    clip: {fileID: 7400000, guid: 6297a41bdcadbfe3c378c2c704143062, type: 3}
-    speed: 1
-    damage: 7
-    hitWindows:
-    - {x: 0.18, y: 0.303}
-    - {x: 0.655, y: 0.82}
-    hitBone: 18
-    comboTime: 0.85
-    recoveryTime: 0.9
-    endTime: 0.95
-    recoveryState: 
-    recoveryClip: {fileID: 0}
-    rootMotionScale: 1
-    rootTravel: 0
-    carrySpeed: 0
-    twoHanded: 0
-    knockback: 0.4
-    heavy: 1
-    reaction: 0
-    launchHeight: 0.7
-    transitionDuration: 0.08
-    verticalRootMotion: 0
-    airGravityScale: 0.12
-    slamHoldTime: 0
-    slamImpactTime: 0
-    slamRadius: 0
+  airCombo: []
   slam:
-    name: Golpe de queda
-    stateName: Q-Sword-GroundPound
-    clip: {fileID: 7400000, guid: 686c7f0bc89a46c0ab243885afb57e45, type: 3}
+    name: 
+    stateName: 
+    clip: {fileID: 0}
     speed: 1
-    damage: 16
+    damage: 10
     hitWindows:
-    - {x: 0.12, y: 0.32}
+    - {x: 0.3, y: 0.5}
     hitBone: 18
-    comboTime: 0.5
-    recoveryTime: 0.55
-    endTime: 0.85
+    comboTime: 0.6
+    recoveryTime: 0.8
+    endTime: 0.95
     recoveryState: 
     recoveryClip: {fileID: 0}
     rootMotionScale: 1
     rootTravel: 0
     carrySpeed: 0
     twoHanded: 0
-    knockback: 1.2
+    knockback: 0.4
     heavy: 0
-    reaction: 4
+    reaction: 0
     launchHeight: 0
     transitionDuration: 0.1
     verticalRootMotion: 0
-    airGravityScale: 0.5
-    slamHoldTime: 0.18
-    slamImpactTime: 0.29
-    slamRadius: 3.2
+    airGravityScale: 1
+    slamHoldTime: 0
+    slamImpactTime: 0
+    slamRadius: 0
   dashAttack:
     name: Investida
     stateName: SprintAttackArmed

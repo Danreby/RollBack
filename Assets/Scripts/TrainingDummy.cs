@@ -103,6 +103,16 @@ public class TrainingDummy : MonoBehaviour, IPushable, IAirborneTarget
     public Health Health => health;
     public bool IsDown => pose == Pose.Down || pose == Pose.GettingUp;
     public bool IsAirborne => pose == Pose.Airborne;
+    public bool IsStanding => pose == Pose.Standing;
+    // Atordoado logo depois de apanhar (usado pelo SparringAI para não atacar no meio da reação)
+    public bool IsStunned => Time.time < stunnedUntil;
+
+    // Toca um estado do Animator por fora (ataques do SparringAI, postura de guarda)
+    public void PlayState(string state, float transition)
+    {
+        if (pose == Pose.Standing)
+            Play(state, transition);
+    }
     public Vector3 HeadPosition => transform.position + Vector3.up * headHeight;
 
     private void Awake()

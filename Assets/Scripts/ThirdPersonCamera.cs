@@ -47,11 +47,28 @@ public class ThirdPersonCamera : MonoBehaviour
 
     [Header("Velocidade")]
     [Tooltip("Graus a mais de campo de visão correndo na velocidade máxima. 0 desliga")]
-    public float sprintFovBoost = 6f;
+    public float sprintFovBoost = 10f;
+    [Tooltip("Graus extras de campo de visão que \"estouram\" ao começar a disparada e voltam logo")]
+    public float sprintFovPunch = 5f;
     [Tooltip("Disparando a câmera também se afasta um pouco (metros a mais na velocidade máxima)")]
     public float sprintDistanceBoost = 1.2f;
     [Tooltip("Quão rápido o campo de visão acompanha a velocidade")]
     public float fovSharpness = 4f;
+
+    [Header("Disparada: a câmera acompanha a corrida")]
+    [Tooltip("Quanto a câmera \"afunda\" a cada passo na disparada (m), sincronizado com o contato dos pés")]
+    public float stepBob = 0.16f;
+    [Tooltip("Balanço lateral alternado a cada passo (graus)")]
+    public float stepRoll = 0.9f;
+    [Tooltip("Vibração contínua na velocidade máxima (m)")]
+    public float runVibration = 0.025f;
+    public float runVibrationFrequency = 17f;
+    [Tooltip("Inclinação da câmera para dentro das curvas: graus por (grau/s de giro) na velocidade máxima")]
+    public float turnBank = 0.012f;
+    public float maxTurnBank = 5f;
+    [Tooltip("A câmera fica para trás ao acelerar e adianta ao frear (m por m/s²)")]
+    public float accelerationLag = 0.03f;
+    public float maxAccelerationLag = 0.9f;
 
     private static ThirdPersonCamera instance;
 
@@ -62,6 +79,17 @@ public class ThirdPersonCamera : MonoBehaviour
     private float pitchOffset;
     private float speedFactor;
 
+    private AnimationEventSink targetSteps;
+    private float bob, bobVelocity;
+    private float stepSide = 1f;
+    private float roll, rollTarget;
+    private float bank;
+    private float lastTargetYaw;
+    private Vector3 lastTargetVelocity;
+    private Vector3 lagOffset;
+    private float fovPunch;
+    private bool wasSprinting;
+
     private float yaw;
     private float pitch = 15f;
     private float currentDistance;
@@ -71,6 +99,8 @@ public class ThirdPersonCamera : MonoBehaviour
     private readonly RaycastHit[] hits = new RaycastHit[16];
 
     public float Yaw => yaw;
+    // 0 = correndo ou mais devagar, 1 = disparada na velocidade máxima (usado pelos efeitos de velocidade)
+    public float SpeedFactor => speedFactor;
 
     public static void Shake(float amount)
     {
@@ -98,9 +128,29 @@ public class ThirdPersonCamera : MonoBehaviour
         {
             targetController = target.GetComponent<ThirdPersonController>();
             targetLock       = target.GetComponent<TargetLock>();
+            targetSteps      = target.GetComponent<AnimationEventSink>();
+            if (targetSteps != null)
+                targetSteps.Footstep += OnFootstep;
+            lastTargetYaw = target.eulerAngles.y;
         }
         SetCursorLocked(true);
         SnapBehindTarget();
+    }
+
+    private void OnDestroy()
+    {
+        if (targetSteps != null)
+            targetSteps.Footstep -= OnFootstep;
+    }
+
+    // Cada passo na disparada dá um "tranco" para baixo e alterna o balanço lateral.
+    private void OnFootstep()
+    {
+        if (speedFactor < 0.05f)
+            return;
+        bobVelocity -= stepBob * 14f * speedFactor;
+        stepSide     = -stepSide;
+        rollTarget   = stepSide * stepRoll * speedFactor;
     }
 
     // Apertar "travar" sem inimigo por perto: a câmera gira para trás do personagem.
@@ -121,6 +171,11 @@ public class ThirdPersonCamera : MonoBehaviour
         pivot           = target.position + Vector3.up * pivotHeight;
         pivotVelocity   = Vector3.zero;
         currentDistance = distance;
+        lagOffset       = Vector3.zero;
+        bob = bobVelocity = roll = rollTarget = bank = 0f;
+        lastTargetYaw   = target.eulerAngles.y;
+        if (targetController != null)
+            lastTargetVelocity = targetController.PlanarVelocity;
     }
 
     private void LateUpdate()
@@ -183,13 +238,14 @@ public class ThirdPersonCamera : MonoBehaviour
             float wanted = Mathf.InverseLerp(targetController.moveSpeed, targetController.sprintSpeed, v.magnitude);
             speedFactor  = Mathf.Lerp(speedFactor, wanted, 1f - Mathf.Exp(-2.5f * dt));
             frameDistance += sprintDistanceBoost * speedFactor;
+            UpdateSpeedMotion(dt);
         }
 
         pivot = followSmoothTime > 0f
-            ? Vector3.SmoothDamp(pivot, desiredPivot, ref pivotVelocity, followSmoothTime, Mathf.Infinity, dt)
-            : desiredPivot;
+            ? Vector3.SmoothDamp(pivot, desiredPivot + lagOffset, ref pivotVelocity, followSmoothTime, Mathf.Infinity, dt)
+            : desiredPivot + lagOffset;
 
-        Quaternion rotation = Quaternion.Euler(pitch, yaw, 0f);
+        Quaternion rotation = Quaternion.Euler(pitch, yaw, bank + roll);
         Vector3 back        = rotation * Vector3.back;
 
         // Aproxima na hora (para nunca atravessar nada) e afasta suavemente.
@@ -199,6 +255,15 @@ public class ThirdPersonCamera : MonoBehaviour
             : Mathf.Lerp(currentDistance, allowed, 1f - Mathf.Exp(-6f * dt));
 
         Vector3 position = pivot + back * currentDistance;
+
+        // Disparada: tranco de cada passo + vibração (mais forte quanto mais rápido)
+        position += rotation * Vector3.up * bob;
+        if (speedFactor > 0.01f && runVibration > 0f)
+        {
+            float t = Time.unscaledTime * runVibrationFrequency;
+            Vector3 vibration = new Vector3(Mathf.PerlinNoise(t, 0.17f) - 0.5f, Mathf.PerlinNoise(0.53f, t) - 0.5f, 0f);
+            position += rotation * vibration * (2f * runVibration * speedFactor * speedFactor);
+        }
 
         if (shakeTrauma > 0f)
         {
@@ -213,6 +278,40 @@ public class ThirdPersonCamera : MonoBehaviour
         UpdateFieldOfView(dt);
     }
 
+    // Movimentos da câmera que vêm da velocidade do personagem (fora o tranco dos passos, que vem dos eventos).
+    private void UpdateSpeedMotion(float dt)
+    {
+        // Mola do tranco dos passos (um pouco menos que criticamente amortecida: afunda e volta com um leve repique)
+        bobVelocity += (-220f * bob - 22f * bobVelocity) * dt;
+        bob         += bobVelocity * dt;
+        rollTarget   = Mathf.MoveTowards(rollTarget, 0f, stepRoll * 2.5f * dt);
+        roll         = Mathf.Lerp(roll, rollTarget, 1f - Mathf.Exp(-12f * dt));
+
+        // Inclinação nas curvas: proporcional ao giro do personagem e à velocidade
+        float yawNow  = target.eulerAngles.y;
+        float yawRate = Time.deltaTime > 0f ? Mathf.DeltaAngle(lastTargetYaw, yawNow) / Time.deltaTime : 0f;
+        lastTargetYaw = yawNow;
+        float bankTarget = Mathf.Clamp(-yawRate * turnBank, -maxTurnBank, maxTurnBank) * speedFactor;
+        bank = Mathf.Lerp(bank, bankTarget, 1f - Mathf.Exp(-4f * dt));
+
+        // Atraso de aceleração: a câmera "fica para trás" na arrancada e adianta na freada
+        Vector3 velocity = targetController.PlanarVelocity;
+        if (Time.deltaTime > 0f)
+        {
+            Vector3 acceleration = (velocity - lastTargetVelocity) / Time.deltaTime;
+            Vector3 wantedLag    = Vector3.ClampMagnitude(-acceleration * accelerationLag, maxAccelerationLag);
+            lagOffset = Vector3.Lerp(lagOffset, wantedLag, 1f - Mathf.Exp(-5f * dt));
+        }
+        lastTargetVelocity = velocity;
+
+        // "Estouro" do campo de visão ao engatar a disparada
+        bool sprinting = targetController.IsSprinting && velocity.magnitude > targetController.moveSpeed * 0.8f;
+        if (sprinting && !wasSprinting)
+            fovPunch = sprintFovPunch;
+        wasSprinting = sprinting;
+        fovPunch = Mathf.MoveTowards(fovPunch, 0f, sprintFovPunch * 1.4f * dt);
+    }
+
     private void UpdateFieldOfView(float dt)
     {
         if (cam == null || sprintFovBoost <= 0f)
@@ -225,7 +324,7 @@ public class ThirdPersonCamera : MonoBehaviour
             velocity.y = 0f;
             boost = sprintFovBoost * Mathf.InverseLerp(targetController.moveSpeed, targetController.sprintSpeed, velocity.magnitude);
         }
-        cam.fieldOfView = Mathf.Lerp(cam.fieldOfView, baseFov + boost, 1f - Mathf.Exp(-fovSharpness * dt));
+        cam.fieldOfView = Mathf.Lerp(cam.fieldOfView, baseFov + boost + fovPunch, 1f - Mathf.Exp(-fovSharpness * dt));
     }
 
     private float GetAllowedDistance(Vector3 origin, Vector3 direction, float maxDistance)

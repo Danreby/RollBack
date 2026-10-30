@@ -29,7 +29,7 @@ using UnityEngine;
 [DefaultExecutionOrder(-50)]
 public class PlayerCombat : MonoBehaviour
 {
-    private enum ActionState { None, Attack, Recovery, Dodge }
+    private enum ActionState { None, Attack, Recovery, Dodge, Stagger, Down }
     private enum Chain { Light, Heavy, Air, Special }
     private enum SlamPhase { None, Rising, Diving, Impact }
 
@@ -63,6 +63,27 @@ public class PlayerCombat : MonoBehaviour
     [Range(0f, 1f)] public float dodgeCancelTime = 0.6f;
     [Range(0f, 1f)] public float dodgeEndTime = 0.8f;
     public float dodgeCooldown = 0.15f;
+
+    [Header("Levar dano")]
+    [Tooltip("Animação de dano (cambaleia para trás)")]
+    public string hitReactionState = "HitReaction";
+    public AnimationClip hitReactionClip;
+    [Tooltip("A partir desta fração da animação de dano já dá para esquivar ou atacar")]
+    [Range(0f, 1f)] public float hitReactionCancelTime = 0.45f;
+    [Tooltip("Invencível por este tempo depois de levar um golpe (não apanha de novo na mesma hora)")]
+    public float hurtInvulnerability = 0.5f;
+    [Tooltip("Vida zerada: cai, espera e levanta com a vida cheia")]
+    public string knockdownState = "PlayerKnockdown";
+    public AnimationClip knockdownClip;
+    public string getUpState = "PlayerGetUp";
+    public AnimationClip getUpClip;
+    public float getUpSpeed = 1.6f;
+    public float downTime = 1.2f;
+
+    [Header("Esquiva perfeita")]
+    [Tooltip("Esquivar bem na hora do golpe inimigo deixa o tempo lento por este tempo (s, tempo real)")]
+    public float perfectDodgeDuration = 0.6f;
+    [Range(0.05f, 1f)] public float perfectDodgeTimeScale = 0.3f;
 
     [Header("Mira assistida")]
     public float targetSearchRadius = 6f;
@@ -110,6 +131,8 @@ public class PlayerCombat : MonoBehaviour
     public event Action<MeleeWeapon> WeaponChanged;
     public event Action ArsenalChanged;
     public event Action<Vector3> SlamLanded;
+    public event Action<DamageInfo> Hurt;
+    public event Action PerfectDodged;
 
     private static readonly int LocomotionHash  = Animator.StringToHash("Locomotion");
     private static readonly int JumpFallHash    = Animator.StringToHash("JumpFall");
@@ -146,6 +169,10 @@ public class PlayerCombat : MonoBehaviour
     private float poseBlend;
     private int airAttacksUsed;
     private SlamPhase slamPhase;
+    private float hurtInvulnerableUntil;
+    private Vector3 hurtKnockVelocity;
+    private bool gettingUp;
+    private float perfectDodgeReadyTime;
 
     // Quão rápido (m/s por segundo) o embalo herdado de um ataque em corrida se dissipa
     private const float momentumDecay = 35f;
@@ -174,6 +201,7 @@ public class PlayerCombat : MonoBehaviour
     public bool IsBusy => state != ActionState.None && state != ActionState.Recovery;
     public bool IsAttacking => state == ActionState.Attack;
     public bool IsDodging => state == ActionState.Dodge;
+    public bool IsStaggered => state == ActionState.Stagger || state == ActionState.Down;
     public bool IsAirAttacking => state == ActionState.Attack && (chain == Chain.Air || slamPhase != SlamPhase.None);
     public int ComboIndex => comboIndex;
     public AttackData CurrentAttack => state == ActionState.Attack ? currentAttack : null;
@@ -205,10 +233,14 @@ public class PlayerCombat : MonoBehaviour
     private void OnEnable()
     {
         controller.ActionMotionFilter = FilterActionMotion;
+        if (health != null)
+            health.Damaged += OnDamaged;
     }
 
     private void OnDisable()
     {
+        if (health != null)
+            health.Damaged -= OnDamaged;
         if (state != ActionState.None)
             EndAction(0.1f);
         if (controller.ActionMotionFilter == (Func<Vector3, Vector3>)FilterActionMotion)
@@ -366,7 +398,17 @@ public class PlayerCombat : MonoBehaviour
             case ActionState.Dodge:
                 UpdateDodge(Time.deltaTime);
                 break;
+            case ActionState.Stagger:
+                UpdateStagger(Time.deltaTime);
+                break;
+            case ActionState.Down:
+                UpdateDown(Time.deltaTime);
+                break;
         }
+
+        // Logo depois de levar um golpe (ou caído) não apanha de novo
+        if (health != null && (Time.time < hurtInvulnerableUntil || state == ActionState.Down))
+            health.Invulnerable = true;
     }
 
     private void LateUpdate()
@@ -1015,6 +1057,145 @@ public class PlayerCombat : MonoBehaviour
 
         if (n >= dodgeEndTime)
             EndAction(0.25f);
+    }
+
+    // ---- Levar dano ----
+
+    private void OnDamaged(DamageInfo info)
+    {
+        Hurt?.Invoke(info);
+        ThirdPersonCamera.Shake(info.heavy ? 0.35f : 0.2f);
+        if (health.IsDead)
+            StartDown(info);
+        else
+            StartStagger(info);
+    }
+
+    // Limpa o golpe/esquiva em andamento antes de uma reação de dano
+    private void InterruptAction()
+    {
+        ResetSwing();
+        controller.ClearFacing();
+        currentAttack  = null;
+        attackTarget   = null;
+        attackPushable = null;
+        carryMomentum  = Vector3.zero;
+        comboIndex     = -1;
+        playbackRate   = 1f;
+        slamPhase      = SlamPhase.None;
+        actionTime     = 0f;
+        ClearAttackBuffers();
+        dodgeBufferedUntil = -1f;
+    }
+
+    private void StartStagger(DamageInfo info)
+    {
+        InterruptAction();
+        state = ActionState.Stagger;
+        // Vira para quem bateu e é empurrado para trás
+        if (info.direction.sqrMagnitude > 1e-4f)
+            controller.SnapFacing(-info.direction);
+        hurtKnockVelocity     = info.direction * (2f * Mathf.Max(info.knockback, 0.3f) / 0.25f);
+        hurtInvulnerableUntil = Time.time + hurtInvulnerability;
+        actionDuration        = hitReactionClip != null ? hitReactionClip.length : 0.8f;
+        controller.SetActionLock(true, 0f);
+        if (animator != null && !string.IsNullOrEmpty(hitReactionState))
+        {
+            animator.SetFloat(ActionSpeedHash, 1f);
+            animator.CrossFadeInFixedTime(hitReactionState, 0.05f, 0, 0f);
+        }
+    }
+
+    private void UpdateStagger(float dt)
+    {
+        actionTime += dt;
+        float n = NormalizedTime;
+        PushBack(dt);
+
+        if (n >= hitReactionCancelTime)
+        {
+            if (DodgeBuffered && CanStartDodge())
+            {
+                StartDodge();
+                return;
+            }
+            if (AnyAttackBuffered)
+            {
+                state = ActionState.None;
+                TryStartFromNeutral();
+                if (state != ActionState.None)
+                    return;
+                state = ActionState.Stagger;
+            }
+            if (n >= 0.7f && controller.HasMoveInput)
+            {
+                EndAction(0.25f);
+                return;
+            }
+        }
+        if (n >= 0.92f)
+            EndAction(0.25f);
+    }
+
+    // Empurrão que cai linearmente até zero em 0,25 s
+    private void PushBack(float dt)
+    {
+        if (hurtKnockVelocity.sqrMagnitude < 1e-4f)
+            return;
+        controller.Nudge(hurtKnockVelocity * dt);
+        hurtKnockVelocity = Vector3.MoveTowards(hurtKnockVelocity, Vector3.zero, hurtKnockVelocity.magnitude / 0.25f * dt + 1e-3f);
+    }
+
+    private void StartDown(DamageInfo info)
+    {
+        InterruptAction();
+        state     = ActionState.Down;
+        gettingUp = false;
+        if (info.direction.sqrMagnitude > 1e-4f)
+            controller.SnapFacing(-info.direction);
+        hurtKnockVelocity = info.direction * (2f * Mathf.Max(info.knockback, 1f) / 0.25f);
+        actionDuration    = (knockdownClip != null ? knockdownClip.length : 1.5f) + downTime;
+        controller.SetActionLock(true, 0f);
+        if (animator != null && !string.IsNullOrEmpty(knockdownState))
+        {
+            animator.SetFloat(ActionSpeedHash, 1f);
+            animator.CrossFadeInFixedTime(knockdownState, 0.06f, 0, 0f);
+        }
+    }
+
+    private void UpdateDown(float dt)
+    {
+        actionTime += dt;
+        PushBack(dt);
+        if (!gettingUp && actionTime >= actionDuration)
+        {
+            // Levanta com a vida cheia (invencível até terminar)
+            gettingUp      = true;
+            actionTime     = 0f;
+            actionDuration = (getUpClip != null ? getUpClip.length : 2f) / Mathf.Max(0.05f, getUpSpeed);
+            health.ResetHealth();
+            if (animator != null && !string.IsNullOrEmpty(getUpState))
+            {
+                animator.SetFloat(ActionSpeedHash, getUpSpeed);
+                animator.CrossFadeInFixedTime(getUpState, 0.15f, 0, 0f);
+            }
+            return;
+        }
+        if (gettingUp && actionTime >= actionDuration * 0.92f)
+        {
+            hurtInvulnerableUntil = Time.time + hurtInvulnerability;
+            EndAction(0.3f);
+        }
+    }
+
+    // Chamado por um inimigo quando o golpe dele pegaria o player bem no meio da esquiva.
+    public void NotifyPerfectDodge()
+    {
+        if (Time.unscaledTime < perfectDodgeReadyTime)
+            return;
+        perfectDodgeReadyTime = Time.unscaledTime + perfectDodgeDuration + 0.5f;
+        HitStop.RequestSlowMotion(perfectDodgeDuration, perfectDodgeTimeScale, 0.35f);
+        PerfectDodged?.Invoke();
     }
 
     // ---- Comum ----

@@ -75,6 +75,15 @@ public class CombatHUD : MonoBehaviour
     private float comboPunch;
     private int comboCount;
     private float lastHitTime = -999f;
+
+    // Vida do player, aviso de esquiva perfeita e flash vermelho ao levar dano
+    private Health playerHealth;
+    private RectTransform playerHpFill, playerHpTrail;
+    private float playerHpTrailValue = 1f;
+    private Text perfectDodgeLabel;
+    private float perfectDodgeTime = -999f;
+    private Image hurtOverlay;
+    private float hurtFlash;
     private readonly List<HealthBar> bars = new List<HealthBar>();
     private readonly List<DamageNumber> numbers = new List<DamageNumber>();
 
@@ -113,7 +122,10 @@ public class CombatHUD : MonoBehaviour
             player.AttackStarted  += OnAttackStarted;
             player.WeaponChanged  += OnWeaponChanged;
             player.ArsenalChanged += RefreshArsenal;
-            targetLock = player.GetComponent<TargetLock>();
+            player.Hurt           += OnPlayerHurt;
+            player.PerfectDodged  += OnPerfectDodge;
+            targetLock   = player.GetComponent<TargetLock>();
+            playerHealth = player.GetComponent<Health>();
             OnWeaponChanged(player.Weapon);
         }
     }
@@ -126,7 +138,89 @@ public class CombatHUD : MonoBehaviour
             player.AttackStarted  -= OnAttackStarted;
             player.WeaponChanged  -= OnWeaponChanged;
             player.ArsenalChanged -= RefreshArsenal;
+            player.Hurt           -= OnPlayerHurt;
+            player.PerfectDodged  -= OnPerfectDodge;
         }
+    }
+
+    private void OnPlayerHurt(DamageInfo info)
+    {
+        hurtFlash = info.heavy ? 0.6f : 0.4f;
+    }
+
+    private void OnPerfectDodge()
+    {
+        perfectDodgeTime = Time.unscaledTime;
+    }
+
+    private void BuildPlayerStatus()
+    {
+        // Barra de vida do player, logo abaixo do arsenal
+        RectTransform hpRoot = CreateImage("PlayerHealth", canvasRect, new Color(0f, 0f, 0f, 0.6f));
+        Place(hpRoot, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(28f, -110f), new Vector2(360f, 18f));
+        playerHpTrail = CreateImage("Trail", hpRoot, new Color(1f, 1f, 1f, 0.8f));
+        playerHpFill  = CreateImage("Fill", hpRoot, new Color(0.3f, 0.85f, 0.45f));
+        foreach (RectTransform part in new[] { playerHpTrail, playerHpFill })
+        {
+            part.anchorMin = Vector2.zero;
+            part.anchorMax = Vector2.one;
+            part.pivot     = new Vector2(0f, 0.5f);
+            part.offsetMin = new Vector2(2f, 2f);
+            part.offsetMax = new Vector2(-2f, -2f);
+        }
+
+        perfectDodgeLabel = CreateText("PerfectDodge", canvasRect, 64, TextAnchor.MiddleCenter, new Color(0.55f, 0.9f, 1f));
+        perfectDodgeLabel.text = "ESQUIVA PERFEITA!";
+        Place(perfectDodgeLabel.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 180f), new Vector2(1000f, 90f));
+        perfectDodgeLabel.rectTransform.pivot = new Vector2(0.5f, 0.5f);
+        perfectDodgeLabel.enabled = false;
+
+        // Flash vermelho nas bordas da tela ao levar dano
+        hurtOverlay = CreateImage("HurtFlash", canvasRect, new Color(0.8f, 0f, 0f, 0f)).GetComponent<Image>();
+        Place(hurtOverlay.rectTransform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero, true);
+        hurtOverlay.sprite = CreateVignetteSprite();
+        hurtOverlay.rectTransform.SetAsFirstSibling();
+    }
+
+    private static Sprite CreateVignetteSprite()
+    {
+        const int size = 64;
+        var texture = new Texture2D(size, size, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp };
+        float half = (size - 1) * 0.5f;
+        for (int y = 0; y < size; y++)
+            for (int x = 0; x < size; x++)
+            {
+                float d = Mathf.Max(Mathf.Abs(x - half), Mathf.Abs(y - half)) / half;
+                float a = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.55f, 1f, d));
+                texture.SetPixel(x, y, new Color(1f, 1f, 1f, a));
+            }
+        texture.Apply();
+        return Sprite.Create(texture, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f));
+    }
+
+    private void UpdatePlayerStatus(float dt)
+    {
+        if (playerHealth != null && playerHpFill != null)
+        {
+            float value = playerHealth.Normalized;
+            playerHpTrailValue = value > playerHpTrailValue ? value : Mathf.MoveTowards(playerHpTrailValue, value, dt * 0.5f);
+            playerHpFill.localScale  = new Vector3(value, 1f, 1f);
+            playerHpTrail.localScale = new Vector3(playerHpTrailValue, 1f, 1f);
+        }
+
+        float age = Time.unscaledTime - perfectDodgeTime;
+        bool showPerfect = age < 1.2f;
+        perfectDodgeLabel.enabled = showPerfect;
+        if (showPerfect)
+        {
+            Color c = perfectDodgeLabel.color;
+            c.a = age < 0.9f ? 1f : 1f - (age - 0.9f) / 0.3f;
+            perfectDodgeLabel.color = c;
+            perfectDodgeLabel.rectTransform.localScale = Vector3.one * (1f + 0.35f * Mathf.Max(0f, 1f - age * 6f));
+        }
+
+        hurtFlash = Mathf.MoveTowards(hurtFlash, 0f, dt * 1.2f);
+        hurtOverlay.color = new Color(0.85f, 0f, 0f, hurtFlash);
     }
 
     private void OnDestroy()
@@ -156,7 +250,7 @@ public class CombatHUD : MonoBehaviour
             controls.text = "WASD  mover        Alt / Caps Lock  andar        Shift  disparar        Espaço  pular (2x no ar: pulo duplo)\n" +
                             "Clique  golpe leve        Botão direito  golpe pesado (no meio da sequência muda o finalizador)\n" +
                             "Q  lançador (sobe junto)        No ar: clique  combo aéreo,  botão direito  golpe de queda        Disparando + clique  investida\n" +
-                            "E / botão do meio  travar mira        Tab / puxão do mouse  trocar alvo        Ctrl  esquivar\n" +
+                            "E / botão do meio  travar mira        Tab / puxão do mouse  trocar alvo        Ctrl  esquivar (bem na hora do golpe do boneco vermelho: esquiva perfeita)\n" +
                             "F  pegar arma        G  largar        1-5  trocar arma        Scroll  zoom        Esc  soltar mouse        F2  modo da locomoção";
             Place(controls.rectTransform, new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(28f, 24f), new Vector2(1200f, 150f));
         }
@@ -167,6 +261,7 @@ public class CombatHUD : MonoBehaviour
         Place(arsenalLabel.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(28f, -66f), new Vector2(900f, 34f));
 
         BuildStyleMeter();
+        BuildPlayerStatus();
 
         promptLabel = CreateText("Prompt", canvasRect, 32, TextAnchor.MiddleCenter, new Color(1f, 0.95f, 0.7f));
         Place(promptLabel.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 200f), new Vector2(700f, 50f));
@@ -379,6 +474,7 @@ public class CombatHUD : MonoBehaviour
 
         UpdateCombo(dt);
         UpdateStyle(dt);
+        UpdatePlayerStatus(dt);
         if (cam == null)
             return;
         UpdateHealthBars(cam, dt);

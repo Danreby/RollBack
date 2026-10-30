@@ -24,6 +24,14 @@ public class ThirdPersonController : MonoBehaviour
     public float moveSpeed = 7f;
     [Tooltip("Disparada (Shift): a corrida a toda velocidade")]
     public float sprintSpeed = 12.5f;
+    [Tooltip("Segurando a disparada, a velocidade continua subindo até este valor (m/s)")]
+    public float sprintTopSpeed = 13.8f;
+    [Tooltip("Tempo (s) de disparada contínua para chegar à velocidade máxima")]
+    public float sprintRampTime = 1.5f;
+    [Tooltip("Meia-vida da aceleração no arranque da disparada (menor = arrancada mais explosiva)")]
+    public float sprintBurstHalflife = 0.07f;
+    [Tooltip("Duração (s) da arrancada explosiva")]
+    public float sprintBurstDuration = 0.35f;
     [Tooltip("Com a mira travada: velocidade andando de lado/para trás de frente para o alvo")]
     public float strafeSpeed = 4.8f;
     [Tooltip("Direcional analógico abaixo disto anda em vez de correr")]
@@ -63,6 +71,8 @@ public class ThirdPersonController : MonoBehaviour
     public float maxAccelerationLean = 6f;
     [Tooltip("Graus de inclinação por m/s² de aceleração")]
     public float accelerationLeanAmount = 0.35f;
+    [Tooltip("Inclinação extra do tronco para frente na disparada (graus, na velocidade máxima)")]
+    public float sprintLean = 5f;
     [Tooltip("Quão rápido a inclinação acompanha (maior = mais seco)")]
     public float leanSharpness = 10f;
 
@@ -89,6 +99,7 @@ public class ThirdPersonController : MonoBehaviour
     private float ignoreGroundUntil;
     private Vector3 wallNormal;
     private float wallContactTime = -999f;
+    private float sprintTime;
 
     // Estado controlado pelo PlayerCombat
     private bool actionLocked;
@@ -123,6 +134,9 @@ public class ThirdPersonController : MonoBehaviour
     public bool HasMoveInput => MoveDirection.sqrMagnitude > 0.01f;
     public bool IsSprinting { get; private set; }
     public bool IsWalking { get; private set; }
+    // Velocidade da disparada agora (sobe de sprintSpeed até sprintTopSpeed enquanto o Shift fica apertado)
+    public float CurrentSprintSpeed => Mathf.Lerp(sprintSpeed, Mathf.Max(sprintSpeed, sprintTopSpeed),
+                                                  sprintRampTime > 0f ? Mathf.Clamp01(sprintTime / sprintRampTime) : 1f);
     // Velocidade/rotação que o input pede agora (alvo das molas)
     public Vector3 DesiredVelocity => desiredVelocity;
     public Quaternion DesiredRotation => desiredRotation;
@@ -241,6 +255,11 @@ public class ThirdPersonController : MonoBehaviour
         bool walkRequested = walkToggled || (input != null && input.WalkHeld) || move.magnitude < analogWalkThreshold;
         IsSprinting = input != null && input.SprintHeld && HasMoveInput && !actionLocked;
         IsWalking   = HasMoveInput && !IsSprinting && walkRequested;
+        // A disparada "engata" no chão; no ar o tempo para de contar, mas não zera (pular não perde o embalo)
+        if (!IsSprinting)
+            sprintTime = 0f;
+        else if (isGrounded)
+            sprintTime += Time.deltaTime;
     }
 
     private void UpdateJump()
@@ -307,7 +326,7 @@ public class ThirdPersonController : MonoBehaviour
         }
         if (!actionLocked && HasMoveInput)
         {
-            float speed = IsSprinting ? sprintSpeed : (IsWalking ? walkSpeed : (strafing ? strafeSpeed : moveSpeed));
+            float speed = IsSprinting ? CurrentSprintSpeed : (IsWalking ? walkSpeed : (strafing ? strafeSpeed : moveSpeed));
             desiredVelocity = MoveDirection.normalized * speed;
             if (!strafing)
                 desiredRotation = Quaternion.LookRotation(MoveDirection);
@@ -324,7 +343,8 @@ public class ThirdPersonController : MonoBehaviour
 
     private Vector3 UpdatePlanarVelocity(float dt)
     {
-        float halflife = actionLocked ? 0.05f : (isGrounded ? velocityHalflife : airVelocityHalflife);
+        float groundHalflife = IsSprinting && sprintTime < sprintBurstDuration ? sprintBurstHalflife : velocityHalflife;
+        float halflife = actionLocked ? 0.05f : (isGrounded ? groundHalflife : airVelocityHalflife);
         Vec3 position = Vec3.Zero;
         Vec3 velocity = ToVec(planarVelocity);
         Vec3 acceleration = ToVec(planarAcceleration);
@@ -457,6 +477,9 @@ public class ThirdPersonController : MonoBehaviour
             ? 0f
             : Mathf.Clamp(Vector3.Dot(planarAcceleration, transform.forward) * accelerationLeanAmount,
                           -maxAccelerationLean, maxAccelerationLean);
+        // Postura de disparada: tronco jogado para frente, proporcional à velocidade acima da corrida
+        if (free)
+            pitchTarget += sprintLean * Mathf.InverseLerp(moveSpeed, sprintSpeed, velocity.magnitude);
         float blend = 1f - Mathf.Exp(-leanSharpness * dt);
         lean      = Mathf.Lerp(lean, target, blend);
         pitchLean = Mathf.Lerp(pitchLean, pitchTarget, blend);
